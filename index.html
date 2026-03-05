@@ -2469,21 +2469,20 @@
                             };
                             const signals = Signals.detectAll(data.candles, analysis);
                             const composite = Signals.calculateComposite(signals);
-                            if (composite.direction === 'buy') {
-                                marketResults.push({
-                                    symbol: sym,
-                                    direction: composite.direction,
-                                    confidence: composite.confidence,
-                                    price: data.currentPrice,
-                                    currency: data.currency,
-                                    source: 'market'
-                                });
-                            }
+                            marketResults.push({
+                                symbol: sym,
+                                direction: composite.direction,
+                                confidence: composite.confidence,
+                                price: data.currentPrice,
+                                currency: data.currency,
+                                source: 'market'
+                            });
                         } catch {}
                     }));
 
-                    // Sort by confidence descending, fill remaining slots
-                    marketResults.sort((a, b) => b.confidence - a.confidence);
+                    // Sort: BUY first, then HOLD, then SELL, each by confidence desc
+                    const dirOrder = { buy: 0, hold: 1, sell: 2 };
+                    marketResults.sort((a, b) => (dirOrder[a.direction] - dirOrder[b.direction]) || (b.confidence - a.confidence));
                     const remaining = count - results.length;
                     results.push(...marketResults.slice(0, remaining));
                 }
