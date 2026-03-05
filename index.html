@@ -107,15 +107,28 @@
         }
         @media (max-width: 1024px) {
             .app-body { flex-direction: column; height: auto; }
-            .sidebar { width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; overflow-x: auto; }
+            .sidebar { width: 100%; height: auto; max-height: none; border-right: none; border-bottom: 1px solid var(--border); flex-direction: column; overflow-x: hidden; overflow-y: auto; }
             .signals-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
-            .sidebar-section { min-width: 250px; }
+            .sidebar-section { min-width: unset; }
+            .sidebar-section .sidebar-title,
+            .sidebar-section .rec-header,
+            .sidebar-section .watchlist-header { cursor: pointer; user-select: none; }
+            .sidebar-section .sidebar-title::after,
+            .sidebar-section .watchlist-header .sidebar-title::after,
+            .sidebar-section .rec-header .sidebar-title::after { content: ' ▾'; font-size: 0.7rem; }
+            .sidebar-section.collapsed .sidebar-title::after,
+            .sidebar-section.collapsed .watchlist-header .sidebar-title::after,
+            .sidebar-section.collapsed .rec-header .sidebar-title::after { content: ' ▸'; }
+            .sidebar-section.collapsed > *:not(.sidebar-title):not(.watchlist-header):not(.rec-header) { display: none; }
         }
         @media (max-width: 640px) {
-            .app-header { padding: 0 8px; gap: 8px; }
-            .header-center { max-width: 200px; }
+            .app-header { padding: 0 8px; gap: 8px; flex-wrap: wrap; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+            .header-center { max-width: 100%; order: 3; flex-basis: 100%; }
+            .header-right { flex-wrap: wrap; gap: 6px; }
             .app-logo span { display: none; }
             .main-content { padding: 8px; }
+            .chart-toolbar { flex-direction: column; align-items: flex-start; }
+            .overlay-toggles { flex-wrap: wrap; }
         }
 
         /* ========== LOGO ========== */
@@ -634,6 +647,21 @@
             color: var(--text-muted); font-size: 0.8rem;
         }
         .rec-loading .spinner { width: 20px; height: 20px; margin: 0 auto 8px; }
+        .rec-filters {
+            display: flex; gap: 4px; margin-bottom: 10px;
+        }
+        .rec-filter-btn {
+            display: flex; align-items: center; gap: 4px;
+            padding: 3px 10px;
+            font-size: 0.75rem; font-weight: 600;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            transition: all 0.2s;
+            color: var(--text-muted);
+        }
+        .rec-filter-btn .dot { width: 7px; height: 7px; border-radius: 50%; }
+        .rec-filter-btn.active { border-color: var(--accent-blue); color: var(--text-primary); }
+        .rec-filter-btn:not(.active) .dot { opacity: 0.3; }
     </style>
 </head>
 <body>
@@ -701,6 +729,11 @@
                         <input type="number" class="rec-count-input" id="recCountInput" value="10" min="1" max="30">
                         <button class="rec-refresh-btn" id="recRefreshBtn" data-i18n="refresh">Refresh</button>
                     </div>
+                </div>
+                <div class="rec-filters" id="recFilters">
+                    <button class="rec-filter-btn active" data-recfilter="buy"><span class="dot" style="background:var(--accent-green)"></span> <span data-i18n="buy">BUY</span></button>
+                    <button class="rec-filter-btn active" data-recfilter="hold"><span class="dot" style="background:var(--accent-gold)"></span> <span data-i18n="hold">HOLD</span></button>
+                    <button class="rec-filter-btn active" data-recfilter="sell"><span class="dot" style="background:var(--accent-red)"></span> <span data-i18n="sell">SELL</span></button>
                 </div>
                 <div id="recContainer">
                     <div class="rec-loading">
@@ -835,13 +868,6 @@
                 </div>
             </div>
 
-            <div class="signals-title" data-i18n="signals">Signals</div>
-            <div id="signalsList">
-                <div class="signal-card neutral">
-                    <div class="signal-desc" style="color:var(--text-muted)" data-i18n="loadSymbol">Select a symbol to view signals</div>
-                </div>
-            </div>
-
             <div class="signals-title" data-i18n="entryExitPoints">Entry & Exit Points</div>
             <div class="entry-exit-section" id="entryExitSection">
                 <div class="entry-exit-row">
@@ -859,6 +885,13 @@
                 <div class="entry-exit-row">
                     <span class="entry-exit-label" data-i18n="takeProfit2">Take Profit 2 (1:3)</span>
                     <span class="entry-exit-value blue" id="takeProfit2">--</span>
+                </div>
+            </div>
+
+            <div class="signals-title" data-i18n="signals">Signals</div>
+            <div id="signalsList">
+                <div class="signal-card neutral">
+                    <div class="signal-desc" style="color:var(--text-muted)" data-i18n="loadSymbol">Select a symbol to view signals</div>
                 </div>
             </div>
         </aside>
@@ -1952,6 +1985,8 @@
                 watchlist: [],
                 overlays: { sma20: true, sma50: true, sma200: false, bollinger: false, trendLine: true },
                 labels: { sr: true, signals: true, drawings: true },
+                recFilters: { buy: true, hold: true, sell: true },
+                recResults: [],
                 chartType: 'candlestick',
                 indicatorType: 'RSI',
                 drawingMode: null,
@@ -2148,6 +2183,27 @@
                 // Recommendations
                 document.getElementById('recRefreshBtn').addEventListener('click', () => this.loadRecommendations());
                 document.getElementById('recCountInput').addEventListener('change', () => this.loadRecommendations());
+                document.querySelectorAll('.rec-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const key = btn.dataset.recfilter;
+                        this.state.recFilters[key] = !this.state.recFilters[key];
+                        btn.classList.toggle('active', this.state.recFilters[key]);
+                        this.renderRecommendations();
+                    });
+                });
+
+                // Mobile: collapsible sidebar sections
+                if (window.innerWidth <= 1024) {
+                    document.querySelectorAll('.sidebar-section').forEach(section => {
+                        const header = section.querySelector('.sidebar-title, .watchlist-header, .rec-header');
+                        if (header) {
+                            header.addEventListener('click', (e) => {
+                                if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input')) return;
+                                section.classList.toggle('collapsed');
+                            });
+                        }
+                    });
+                }
 
                 // Watchlist modal
                 document.getElementById('addWatchlistBtn').addEventListener('click', () => {
@@ -2487,13 +2543,23 @@
                     results.push(...marketResults.slice(0, remaining));
                 }
 
-                // Render
-                if (results.length === 0) {
+                this.state.recResults = results;
+                this.renderRecommendations();
+            },
+
+            renderRecommendations() {
+                const container = document.getElementById('recContainer');
+                const count = parseInt(document.getElementById('recCountInput').value) || 10;
+                const filters = this.state.recFilters;
+                const filtered = this.state.recResults.filter(r => filters[r.direction]);
+                const display = filtered.slice(0, count);
+
+                if (display.length === 0) {
                     container.innerHTML = `<div class="rec-loading" style="padding:12px 0">${i18n.t('recEmpty')}</div>`;
                     return;
                 }
 
-                container.innerHTML = results.map(r => {
+                container.innerHTML = display.map(r => {
                     const dirLabel = i18n.t(r.direction);
                     const currSym = r.currency === 'ILA' ? '₪' : '$';
                     const sourceLabel = r.source === 'watchlist' ? i18n.t('recWatchlist') : i18n.t('recMarket');
@@ -2511,7 +2577,6 @@
                     `;
                 }).join('');
 
-                // Click to load symbol
                 container.querySelectorAll('.rec-item').forEach(item => {
                     item.addEventListener('click', () => this.loadSymbol(item.dataset.symbol));
                 });
