@@ -417,12 +417,56 @@
 
         /* ========== SIGNALS PANEL ========== */
         .signal-summary {
+            position: relative;
             text-align: center;
             padding: 20px;
             background: var(--bg-card);
             border-radius: var(--radius-lg);
             margin-bottom: 16px;
         }
+        .signal-info-btn {
+            position: absolute; top: 8px; right: 8px;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            color: var(--accent-blue); cursor: pointer;
+            font-size: 0.75rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; line-height: 1;
+        }
+        .signal-info-btn:hover { background: var(--accent-blue); color: #fff; }
+        html[dir="rtl"] .signal-info-btn { right: auto; left: 8px; }
+        .explain-modal {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 24px;
+            width: 520px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+            box-shadow: var(--shadow);
+        }
+        .explain-modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+        .explain-section { margin-bottom: 16px; }
+        .explain-section-title { font-weight: 700; font-size: 0.88rem; color: var(--text-primary); margin-bottom: 8px; }
+        .explain-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 0; border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+        }
+        .explain-row:last-child { border-bottom: none; }
+        .explain-label { color: var(--text-muted); }
+        .explain-value { font-weight: 600; }
+        .explain-value.bullish { color: var(--accent-green); }
+        .explain-value.bearish { color: var(--accent-red); }
+        .explain-value.neutral { color: var(--accent-gold); }
+        .explain-formula {
+            background: var(--bg-secondary); border-radius: var(--radius);
+            padding: 12px; margin-top: 12px; font-size: 0.8rem;
+            color: var(--text-muted); line-height: 1.6;
+        }
+        .explain-result {
+            text-align: center; padding: 12px; margin-top: 8px;
+            border-radius: var(--radius); font-weight: 700; font-size: 1rem;
+        }
+        .explain-result.buy { background: rgba(0,200,83,0.1); color: var(--accent-green); }
+        .explain-result.sell { background: rgba(255,82,82,0.1); color: var(--accent-red); }
+        .explain-result.hold { background: rgba(255,193,7,0.1); color: var(--accent-gold); }
         .signal-direction {
             font-size: 1.8rem;
             font-weight: 800;
@@ -592,6 +636,26 @@
         }
         .modal-btn.primary { background: var(--accent-blue); color: #fff; }
         .modal-btn.secondary { background: var(--bg-secondary); border: 1px solid var(--border); }
+        .info-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--accent-blue); cursor: pointer;
+            font-size: 0.85rem; font-weight: 700; transition: all 0.2s;
+        }
+        .info-btn:hover { background: var(--accent-blue); color: #fff; }
+        .glossary-modal {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 24px;
+            width: 500px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+            box-shadow: var(--shadow);
+        }
+        .glossary-modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+        .glossary-item { margin-bottom: 14px; }
+        .glossary-item-title {
+            font-weight: 700; font-size: 0.9rem; color: var(--accent-blue); margin-bottom: 4px;
+        }
+        .glossary-item-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
 
         /* ========== RECOMMENDATIONS ========== */
         .rec-header {
@@ -679,6 +743,7 @@
                 <button class="market-tab active" data-market="NYSE">NYSE</button>
                 <button class="market-tab" data-market="TASE">TASE</button>
             </div>
+            <button class="info-btn" id="glossaryBtn" title="Glossary">?</button>
         </div>
         <div class="header-center">
             <div class="search-wrapper">
@@ -859,6 +924,7 @@
         <!-- SIGNALS PANEL -->
         <aside class="signals-panel">
             <div class="signal-summary" id="signalSummary">
+                <button class="signal-info-btn" id="signalExplainBtn" title="How was this decided?">?</button>
                 <div class="signal-direction hold" id="signalDirection" data-i18n="hold">HOLD</div>
                 <div class="signal-confidence" id="signalConfidenceText">
                     <span data-i18n="confidence">Confidence</span>: <span id="confidenceValue">--</span>%
@@ -914,6 +980,51 @@
             <div class="modal-actions">
                 <button class="modal-btn secondary" id="modalCancel" data-i18n="cancel">Cancel</button>
                 <button class="modal-btn primary" id="modalAdd" data-i18n="add">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GLOSSARY MODAL -->
+    <div class="modal-backdrop" id="glossaryModal">
+        <div class="glossary-modal">
+            <h3 data-i18n="glossaryTitle">Technical Indicators Glossary</h3>
+            <div class="glossary-item">
+                <div class="glossary-item-title">SMA 20</div>
+                <div class="glossary-item-desc" data-i18n="glossarySma20">Simple Moving Average over 20 periods. Represents the average closing price of the last 20 candles. Used to identify short-term trend direction. When price is above SMA 20, the short-term trend is bullish; below it, bearish.</div>
+            </div>
+            <div class="glossary-item">
+                <div class="glossary-item-title">SMA 50</div>
+                <div class="glossary-item-desc" data-i18n="glossarySma50">Simple Moving Average over 50 periods. A medium-term trend indicator. A "Golden Cross" (SMA 50 crossing above SMA 200) is a strong bullish signal; a "Death Cross" (crossing below) is bearish.</div>
+            </div>
+            <div class="glossary-item">
+                <div class="glossary-item-title">SMA 200</div>
+                <div class="glossary-item-desc" data-i18n="glossarySma200">Simple Moving Average over 200 periods. The most widely watched long-term trend indicator. Institutional investors often use it to determine the overall market direction. Price above SMA 200 suggests a long-term uptrend.</div>
+            </div>
+            <div class="glossary-item">
+                <div class="glossary-item-title" data-i18n="bollingerBands">Bollinger Bands</div>
+                <div class="glossary-item-desc" data-i18n="glossaryBollinger">A volatility indicator consisting of three lines: a middle SMA 20 band and upper/lower bands at 2 standard deviations. When bands squeeze (narrow), a big price move is expected. Price touching the upper band may indicate overbought conditions; touching the lower band may indicate oversold.</div>
+            </div>
+            <div class="glossary-item">
+                <div class="glossary-item-title" data-i18n="trendLine">Trend Line</div>
+                <div class="glossary-item-desc" data-i18n="glossaryTrend">A linear regression line fitted to closing prices over the displayed period. Shows the overall price direction and momentum. A positive slope indicates an uptrend; negative indicates a downtrend. The steeper the slope, the stronger the trend.</div>
+            </div>
+            <div class="glossary-item">
+                <div class="glossary-item-title" data-i18n="supportResistance">Support & Resistance (S/R)</div>
+                <div class="glossary-item-desc" data-i18n="glossarySR">Key price levels where buying or selling pressure has historically been strong. Support is a price floor where demand tends to prevent further decline. Resistance is a price ceiling where supply tends to prevent further rise. Breakouts above resistance or below support often lead to significant price moves.</div>
+            </div>
+            <div style="text-align:right; margin-top:16px;">
+                <button class="modal-btn secondary" id="glossaryClose" data-i18n="close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIGNAL EXPLANATION MODAL -->
+    <div class="modal-backdrop" id="signalExplainModal">
+        <div class="explain-modal">
+            <h3 data-i18n="explainTitle">Signal Decision Breakdown</h3>
+            <div id="signalExplainContent"></div>
+            <div style="text-align:right; margin-top:16px;">
+                <button class="modal-btn secondary" id="signalExplainClose" data-i18n="close">Close</button>
             </div>
         </div>
     </div>
@@ -993,7 +1104,25 @@
                     recLoading: 'Analyzing symbols...',
                     recEmpty: 'No recommendations available',
                     recWatchlist: 'Watchlist',
-                    recMarket: 'Market'
+                    recMarket: 'Market',
+                    explainTitle: 'Signal Decision Breakdown',
+                    explainWeights: 'Indicator Weights',
+                    explainSignals: 'Detected Signals',
+                    explainFormula: 'How it works',
+                    explainFormulaText: 'Each detected signal contributes to a bullish or bearish score based on its indicator weight and strength (Strong=100%, Moderate=60%, Weak=30%). The net score = (Bull Score − Bear Score) / Total Weight. If net > 0.1 → BUY, if net < −0.1 → SELL, otherwise → HOLD. Confidence = |net score| × 200, capped at 100%.',
+                    explainNoSignals: 'No signals detected yet. Load a symbol to see the analysis.',
+                    explainNetScore: 'Net Score',
+                    explainBullScore: 'Bullish Score',
+                    explainBearScore: 'Bearish Score',
+                    explainResult: 'Result',
+                    glossaryTitle: 'Technical Indicators Glossary',
+                    glossarySma20: 'Simple Moving Average over 20 periods. Represents the average closing price of the last 20 candles. Used to identify short-term trend direction. When price is above SMA 20, the short-term trend is bullish; below it, bearish.',
+                    glossarySma50: 'Simple Moving Average over 50 periods. A medium-term trend indicator. A "Golden Cross" (SMA 50 crossing above SMA 200) is a strong bullish signal; a "Death Cross" (crossing below) is bearish.',
+                    glossarySma200: 'Simple Moving Average over 200 periods. The most widely watched long-term trend indicator. Institutional investors often use it to determine the overall market direction. Price above SMA 200 suggests a long-term uptrend.',
+                    glossaryBollinger: 'A volatility indicator consisting of three lines: a middle SMA 20 band and upper/lower bands at 2 standard deviations. When bands squeeze (narrow), a big price move is expected. Price touching the upper band may indicate overbought conditions; touching the lower band may indicate oversold.',
+                    glossaryTrend: 'A linear regression line fitted to closing prices over the displayed period. Shows the overall price direction and momentum. A positive slope indicates an uptrend; negative indicates a downtrend. The steeper the slope, the stronger the trend.',
+                    glossarySR: 'Key price levels where buying or selling pressure has historically been strong. Support is a price floor where demand tends to prevent further decline. Resistance is a price ceiling where supply tends to prevent further rise. Breakouts above resistance or below support often lead to significant price moves.',
+                    close: 'Close'
                 },
                 he: {
                     appName: 'סטוק צ\'ייס',
@@ -1059,7 +1188,25 @@
                     recLoading: 'מנתח סימולים...',
                     recEmpty: 'אין המלצות זמינות',
                     recWatchlist: 'רשימת מעקב',
-                    recMarket: 'שוק'
+                    recMarket: 'שוק',
+                    explainTitle: 'פירוט החלטת האות',
+                    explainWeights: 'משקלות אינדיקטורים',
+                    explainSignals: 'אותות שזוהו',
+                    explainFormula: 'איך זה עובד',
+                    explainFormulaText: 'כל אות שזוהה תורם לציון שורי או דובי בהתבסס על משקל האינדיקטור ועוצמתו (חזק=100%, בינוני=60%, חלש=30%). ציון נטו = (ציון שורי − ציון דובי) / משקל כולל. אם נטו > 0.1 → קנייה, אם נטו < −0.1 → מכירה, אחרת → המתנה. ביטחון = |ציון נטו| × 200, מוגבל ל-100%.',
+                    explainNoSignals: 'לא זוהו אותות עדיין. טען סימול כדי לראות את הניתוח.',
+                    explainNetScore: 'ציון נטו',
+                    explainBullScore: 'ציון שורי',
+                    explainBearScore: 'ציון דובי',
+                    explainResult: 'תוצאה',
+                    glossaryTitle: 'מילון מונחים טכניים',
+                    glossarySma20: 'ממוצע נע פשוט על פני 20 תקופות. מייצג את מחיר הסגירה הממוצע של 20 הנרות האחרונים. משמש לזיהוי כיוון מגמה קצר טווח. כאשר המחיר מעל SMA 20, המגמה קצרת הטווח שורית; מתחתיו, דובית.',
+                    glossarySma50: 'ממוצע נע פשוט על פני 50 תקופות. אינדיקטור מגמה בינוני טווח. "צלב זהב" (SMA 50 חוצה מעל SMA 200) הוא אות שורי חזק; "צלב מוות" (חציה מתחת) הוא דובי.',
+                    glossarySma200: 'ממוצע נע פשוט על פני 200 תקופות. אינדיקטור המגמה ארוכת הטווח הנצפה ביותר. משקיעים מוסדיים משתמשים בו לעיתים קרובות כדי לקבוע את כיוון השוק הכללי. מחיר מעל SMA 200 מצביע על מגמת עלייה ארוכת טווח.',
+                    glossaryBollinger: 'אינדיקטור תנודתיות המורכב משלושה קווים: רצועת SMA 20 אמצעית ורצועות עליונה/תחתונה ב-2 סטיות תקן. כאשר הרצועות מתכווצות, צפוי מהלך מחיר גדול. מחיר הנוגע ברצועה העליונה עשוי להצביע על מצב קניית יתר; נגיעה ברצועה התחתונה עשויה להצביע על מכירת יתר.',
+                    glossaryTrend: 'קו רגרסיה ליניארית המותאם למחירי סגירה בתקופה המוצגת. מראה את כיוון המחיר הכללי והמומנטום. שיפוע חיובי מצביע על מגמת עלייה; שלילי מצביע על מגמת ירידה. ככל שהשיפוע תלול יותר, המגמה חזקה יותר.',
+                    glossarySR: 'רמות מחיר מפתח שבהן לחץ קנייה או מכירה היה חזק היסטורית. תמיכה היא רצפת מחיר שבה הביקוש נוטה למנוע ירידה נוספת. התנגדות היא תקרת מחיר שבה ההיצע נוטה למנוע עלייה נוספת. פריצות מעל התנגדות או מתחת לתמיכה מובילות לעיתים קרובות למהלכי מחיר משמעותיים.',
+                    close: 'סגור'
                 }
             },
             t(key) {
@@ -1192,17 +1339,24 @@
                 return data;
             },
 
-            async searchSymbol(query) {
+            async searchSymbol(query, market) {
                 if (!query || query.length < 1) return [];
-                const url = `${CONFIG.YAHOO_BASE}/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query`;
+                const url = `${CONFIG.YAHOO_BASE}/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query`;
                 const json = await this._fetchWithProxy(url);
                 if (!json.quotes) return [];
-                return json.quotes.map(q => ({
+                const all = json.quotes.map(q => ({
                     symbol: q.symbol,
                     name: q.shortname || q.longname || q.symbol,
                     exchange: q.exchange || '',
                     type: q.quoteType || ''
                 }));
+                if (!market) return all.slice(0, 8);
+                if (market === 'TASE') {
+                    const filtered = all.filter(r => r.symbol.endsWith('.TA') || r.exchange === 'TLV');
+                    return filtered.slice(0, 8);
+                }
+                const filtered = all.filter(r => !r.symbol.endsWith('.TA') && r.exchange !== 'TLV');
+                return filtered.slice(0, 8);
             },
 
             async fetchMultipleQuotes(symbols) {
@@ -2141,7 +2295,7 @@
                     if (q.length < 1) { searchDropdown.classList.remove('visible'); return; }
                     searchTimeout = setTimeout(async () => {
                         try {
-                            const results = await DataService.searchSymbol(q);
+                            const results = await DataService.searchSymbol(q, this.state.currentMarket);
                             if (results.length === 0) { searchDropdown.classList.remove('visible'); return; }
                             searchDropdown.innerHTML = results.map(r => `
                                 <div class="search-item" data-symbol="${r.symbol}">
@@ -2230,12 +2384,43 @@
                     if (e.target === document.getElementById('watchlistModal'))
                         document.getElementById('watchlistModal').classList.remove('visible');
                 });
+
+                // Glossary modal
+                document.getElementById('glossaryBtn').addEventListener('click', () => {
+                    document.getElementById('glossaryModal').classList.add('visible');
+                });
+                document.getElementById('glossaryClose').addEventListener('click', () => {
+                    document.getElementById('glossaryModal').classList.remove('visible');
+                });
+                document.getElementById('glossaryModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('glossaryModal'))
+                        document.getElementById('glossaryModal').classList.remove('visible');
+                });
+
+                // Signal explanation modal
+                document.getElementById('signalExplainBtn').addEventListener('click', () => {
+                    this.renderSignalExplanation();
+                    document.getElementById('signalExplainModal').classList.add('visible');
+                });
+                document.getElementById('signalExplainClose').addEventListener('click', () => {
+                    document.getElementById('signalExplainModal').classList.remove('visible');
+                });
+                document.getElementById('signalExplainModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('signalExplainModal'))
+                        document.getElementById('signalExplainModal').classList.remove('visible');
+                });
             },
 
             updateMarketTabs() {
                 document.querySelectorAll('.market-tab').forEach(b => {
                     b.classList.toggle('active', b.dataset.market === this.state.currentMarket);
                 });
+                const searchInput = document.getElementById('searchInput');
+                const marketLabel = this.state.currentMarket === 'TASE' ? 'TASE' : 'NYSE';
+                const lang = document.documentElement.lang || 'en';
+                searchInput.placeholder = lang === 'he'
+                    ? `חפש סימול או חברה ב-${marketLabel}...`
+                    : `Search ${marketLabel} symbol or company...`;
             },
 
             showLoading() { document.getElementById('loadingOverlay').classList.add('visible'); },
@@ -2373,6 +2558,77 @@
                         </div>
                     `;
                 }).join('');
+            },
+
+            renderSignalExplanation() {
+                const container = document.getElementById('signalExplainContent');
+                const signals = this.state.signals;
+
+                if (!signals || signals.length === 0) {
+                    container.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;">${i18n.t('explainNoSignals')}</p>`;
+                    return;
+                }
+
+                const weights = { maType: 0.25, rsiType: 0.20, macdType: 0.20, bollingerType: 0.15, srType: 0.20 };
+                const strengthValues = { strong: 1.0, moderate: 0.6, weak: 0.3 };
+                let bullScore = 0, bearScore = 0, totalWeight = 0;
+
+                for (const sig of signals) {
+                    const w = weights[sig.type] || 0.1;
+                    const s = strengthValues[sig.strength] || 0.5;
+                    if (sig.direction === 'bullish') bullScore += w * s;
+                    else if (sig.direction === 'bearish') bearScore += w * s;
+                    totalWeight += w;
+                }
+
+                const netScore = totalWeight > 0 ? (bullScore - bearScore) / totalWeight : 0;
+                const confidence = Math.min(100, Math.round(Math.abs(netScore) * 100 * 2));
+                let direction = 'hold';
+                if (netScore > 0.1) direction = 'buy';
+                else if (netScore < -0.1) direction = 'sell';
+
+                // Weights section
+                const weightLabels = { maType: 'MA Crossover', rsiType: 'RSI', macdType: 'MACD', bollingerType: 'Bollinger Bands', srType: 'Support/Resistance' };
+                let weightsHtml = Object.entries(weights).map(([key, w]) =>
+                    `<div class="explain-row"><span class="explain-label">${i18n.t(key)}</span><span class="explain-value">${(w * 100).toFixed(0)}%</span></div>`
+                ).join('');
+
+                // Signals breakdown
+                let signalsHtml = signals.map(sig => {
+                    const cls = sig.direction === 'bullish' ? 'bullish' : 'bearish';
+                    const arrow = sig.direction === 'bullish' ? '▲' : '▼';
+                    const w = weights[sig.type] || 0.1;
+                    const s = strengthValues[sig.strength] || 0.5;
+                    const contribution = (w * s).toFixed(3);
+                    return `<div class="explain-row">
+                        <span class="explain-label">${i18n.t(sig.type)} — ${i18n.t(sig.strength)}</span>
+                        <span class="explain-value ${cls}">${arrow} ${sig.direction === 'bullish' ? '+' : '−'}${contribution}</span>
+                    </div>`;
+                }).join('');
+
+                // Result
+                const dirLabel = i18n.t(direction).toUpperCase();
+
+                container.innerHTML = `
+                    <div class="explain-section">
+                        <div class="explain-section-title">${i18n.t('explainWeights')}</div>
+                        ${weightsHtml}
+                    </div>
+                    <div class="explain-section">
+                        <div class="explain-section-title">${i18n.t('explainSignals')} (${signals.length})</div>
+                        ${signalsHtml}
+                    </div>
+                    <div class="explain-section">
+                        <div class="explain-row"><span class="explain-label">${i18n.t('explainBullScore')}</span><span class="explain-value bullish">+${bullScore.toFixed(3)}</span></div>
+                        <div class="explain-row"><span class="explain-label">${i18n.t('explainBearScore')}</span><span class="explain-value bearish">−${bearScore.toFixed(3)}</span></div>
+                        <div class="explain-row"><span class="explain-label">${i18n.t('explainNetScore')}</span><span class="explain-value ${direction}">${netScore >= 0 ? '+' : ''}${netScore.toFixed(3)}</span></div>
+                    </div>
+                    <div class="explain-result ${direction}">${i18n.t('explainResult')}: ${dirLabel} (${confidence}%)</div>
+                    <div class="explain-formula">
+                        <strong>${i18n.t('explainFormula')}:</strong><br>
+                        ${i18n.t('explainFormulaText')}
+                    </div>
+                `;
             },
 
             renderEntryExit() {
