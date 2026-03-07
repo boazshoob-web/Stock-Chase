@@ -112,14 +112,17 @@
             .sidebar-section { min-width: unset; }
             .sidebar-section .sidebar-title,
             .sidebar-section .rec-header,
+            .sidebar-section .portfolio-header,
             .sidebar-section .watchlist-header { cursor: pointer; user-select: none; }
             .sidebar-section .sidebar-title::after,
             .sidebar-section .watchlist-header .sidebar-title::after,
+            .sidebar-section .portfolio-header .sidebar-title::after,
             .sidebar-section .rec-header .sidebar-title::after { content: ' ▾'; font-size: 0.7rem; }
             .sidebar-section.collapsed .sidebar-title::after,
             .sidebar-section.collapsed .watchlist-header .sidebar-title::after,
+            .sidebar-section.collapsed .portfolio-header .sidebar-title::after,
             .sidebar-section.collapsed .rec-header .sidebar-title::after { content: ' ▸'; }
-            .sidebar-section.collapsed > *:not(.sidebar-title):not(.watchlist-header):not(.rec-header) { display: none; }
+            .sidebar-section.collapsed > *:not(.sidebar-title):not(.watchlist-header):not(.portfolio-header):not(.rec-header) { display: none; }
         }
         @media (max-width: 640px) {
             .app-header { padding: 0 8px; gap: 8px; flex-wrap: wrap; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
@@ -296,6 +299,45 @@
         }
         .watchlist-item:hover .watchlist-remove { opacity: 1; }
         .watchlist-remove:hover { color: var(--accent-red); background: var(--accent-red-bg); }
+        .portfolio-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px;
+        }
+        .portfolio-summary {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 10px; margin-bottom: 8px;
+            background: var(--bg-secondary); border-radius: var(--radius);
+            font-size: 0.8rem;
+        }
+        .portfolio-summary-label { color: var(--text-muted); }
+        .portfolio-summary-value { font-weight: 700; }
+        .portfolio-item {
+            padding: 8px 0; cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            transition: opacity 0.15s;
+        }
+        .portfolio-item:last-child { border-bottom: none; }
+        .portfolio-item:hover { opacity: 0.8; }
+        .portfolio-row {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .portfolio-symbol { font-size: 0.85rem; font-weight: 600; }
+        .portfolio-qty { font-size: 0.72rem; color: var(--text-muted); }
+        .portfolio-value { font-size: 0.85rem; font-weight: 600; text-align: right; }
+        .portfolio-pnl { font-size: 0.72rem; text-align: right; }
+        .portfolio-pnl.up { color: var(--accent-green); }
+        .portfolio-pnl.down { color: var(--accent-red); }
+        .portfolio-remove {
+            font-size: 0.7rem; color: var(--text-muted);
+            padding: 2px 4px; border-radius: 4px;
+            opacity: 0; transition: opacity 0.2s; cursor: pointer;
+        }
+        .portfolio-item:hover .portfolio-remove { opacity: 1; }
+        .portfolio-remove:hover { color: var(--accent-red); background: var(--accent-red-bg); }
+        .portfolio-empty {
+            color: var(--text-muted); font-size: 0.8rem;
+            text-align: center; padding: 16px 0;
+        }
         .watchlist-empty {
             color: var(--text-muted);
             font-size: 0.8rem;
@@ -321,6 +363,15 @@
             background: var(--bg-card); border: 1px solid var(--border);
             border-radius: 12px; color: var(--text-secondary);
         }
+        .add-watchlist-btn {
+            font-size: 0.75rem; padding: 3px 10px;
+            background: transparent; border: 1px solid var(--accent-blue);
+            border-radius: 12px; color: var(--accent-blue);
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .add-watchlist-btn:hover { background: var(--accent-blue); color: #fff; }
+        .add-watchlist-btn.in-watchlist { border-color: var(--accent-green); color: var(--accent-green); }
+        .add-watchlist-btn.in-watchlist:hover { background: var(--accent-red); border-color: var(--accent-red); color: #fff; }
 
         /* ========== CHART AREA ========== */
         .chart-section {
@@ -788,6 +839,16 @@
                 </div>
             </div>
             <div class="sidebar-section">
+                <div class="portfolio-header">
+                    <div class="sidebar-title" data-i18n="portfolio" style="margin-bottom:0">Portfolio</div>
+                    <button class="watchlist-add" id="addPortfolioBtn" title="Add position">+</button>
+                </div>
+                <div id="portfolioSummary"></div>
+                <div id="portfolioContainer">
+                    <div class="portfolio-empty" data-i18n="portfolioEmpty">Add positions to your portfolio</div>
+                </div>
+            </div>
+            <div class="sidebar-section">
                 <div class="rec-header">
                     <div class="sidebar-title" data-i18n="recommendations" style="margin-bottom:0">Recommendations</div>
                     <div class="rec-count-wrapper">
@@ -815,6 +876,7 @@
             <div class="symbol-header" id="symbolHeader">
                 <span class="symbol-name" id="symbolName">S&P 500</span>
                 <span class="symbol-exchange-badge" id="symbolExchange">NYSE</span>
+                <button class="add-watchlist-btn" id="symbolWatchlistBtn" data-i18n="addToWatchlistShort">+ Watchlist</button>
                 <span class="symbol-price" id="symbolPrice">--</span>
                 <span class="symbol-change" id="symbolChange">--</span>
                 <span class="symbol-meta" id="symbolMeta"></span>
@@ -984,6 +1046,23 @@
         </div>
     </div>
 
+    <!-- PORTFOLIO ADD MODAL -->
+    <div class="modal-backdrop" id="portfolioModal">
+        <div class="modal">
+            <div class="modal-title" data-i18n="addPosition">Add Position</div>
+            <input type="text" class="modal-input" id="portfolioSymbolInput" data-i18n-placeholder="enterSymbol" placeholder="Enter symbol (e.g., AAPL)" style="margin-bottom:8px">
+            <div style="display:flex; gap:8px;">
+                <input type="number" class="modal-input" id="portfolioQtyInput" data-i18n-placeholder="quantity" placeholder="Quantity" min="0.01" step="any" style="flex:1">
+                <input type="number" class="modal-input" id="portfolioPriceInput" data-i18n-placeholder="buyPrice" placeholder="Buy price" min="0.01" step="any" style="flex:1">
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;" id="portfolioPriceHint" data-i18n="leaveEmptyCurrentPrice">Leave price empty to use current market price</div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="portfolioCancel" data-i18n="cancel">Cancel</button>
+                <button class="modal-btn primary" id="portfolioAdd" data-i18n="add">Add</button>
+            </div>
+        </div>
+    </div>
+
     <!-- GLOSSARY MODAL -->
     <div class="modal-backdrop" id="glossaryModal">
         <div class="glossary-modal">
@@ -1061,6 +1140,18 @@
                     takeProfit2: 'Take Profit 2 (1:3)',
                     loading: 'Loading data...',
                     addToWatchlist: 'Add to Watchlist',
+                    addToWatchlistShort: '+ Watchlist',
+                    inWatchlist: '✓ Watchlist',
+                    portfolio: 'Portfolio',
+                    portfolioEmpty: 'Add positions to your portfolio',
+                    addPosition: 'Add Position',
+                    quantity: 'Quantity',
+                    buyPrice: 'Buy price',
+                    leaveEmptyCurrentPrice: 'Leave price empty to use current market price',
+                    totalValue: 'Total Value',
+                    totalPnL: 'Total P&L',
+                    avgPrice: 'Avg',
+                    shares: 'shares',
                     enterSymbol: 'Enter symbol (e.g., AAPL)',
                     cancel: 'Cancel',
                     add: 'Add',
@@ -1145,6 +1236,18 @@
                     takeProfit2: 'יעד רווח 2 (1:3)',
                     loading: 'טוען נתונים...',
                     addToWatchlist: 'הוסף לרשימת מעקב',
+                    addToWatchlistShort: '+ מעקב',
+                    inWatchlist: '✓ מעקב',
+                    portfolio: 'תיק השקעות',
+                    portfolioEmpty: 'הוסף פוזיציות לתיק',
+                    addPosition: 'הוסף פוזיציה',
+                    quantity: 'כמות',
+                    buyPrice: 'מחיר קנייה',
+                    leaveEmptyCurrentPrice: 'השאר מחיר ריק לשימוש במחיר השוק הנוכחי',
+                    totalValue: 'שווי כולל',
+                    totalPnL: 'רווח/הפסד כולל',
+                    avgPrice: 'ממוצע',
+                    shares: 'מניות',
                     enterSymbol: 'הכנס סימול (לדוגמה: TEVA.TA)',
                     cancel: 'ביטול',
                     add: 'הוסף',
@@ -2137,6 +2240,7 @@
                 currentMarket: 'NYSE',
                 currentRange: '6M',
                 watchlist: [],
+                portfolio: [],
                 overlays: { sma20: true, sma50: true, sma200: false, bollinger: false, trendLine: true },
                 labels: { sr: true, signals: true, drawings: true },
                 recFilters: { buy: true, hold: true, sell: true },
@@ -2163,12 +2267,18 @@
                     try { this.state.watchlist = JSON.parse(savedWatchlist); } catch {}
                 }
 
+                const savedPortfolio = localStorage.getItem('stockChase_portfolio');
+                if (savedPortfolio) {
+                    try { this.state.portfolio = JSON.parse(savedPortfolio); } catch {}
+                }
+
                 const savedMarket = localStorage.getItem('stockChase_market') || 'NYSE';
                 this.state.currentMarket = savedMarket;
 
                 this.bindEvents();
                 this.updateMarketTabs();
                 this.renderWatchlist();
+                this.renderPortfolio();
                 this.loadMarketOverview();
                 ChartManager._bindDrawingOverlay();
 
@@ -2349,7 +2459,7 @@
                 // Mobile: collapsible sidebar sections
                 if (window.innerWidth <= 1024) {
                     document.querySelectorAll('.sidebar-section').forEach(section => {
-                        const header = section.querySelector('.sidebar-title, .watchlist-header, .rec-header');
+                        const header = section.querySelector('.sidebar-title, .watchlist-header, .portfolio-header, .rec-header');
                         if (header) {
                             header.addEventListener('click', (e) => {
                                 if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input')) return;
@@ -2383,6 +2493,65 @@
                 document.getElementById('watchlistModal').addEventListener('click', (e) => {
                     if (e.target === document.getElementById('watchlistModal'))
                         document.getElementById('watchlistModal').classList.remove('visible');
+                });
+
+                // Symbol watchlist button
+                document.getElementById('symbolWatchlistBtn').addEventListener('click', () => {
+                    const sym = this.state.currentSymbol;
+                    if (!sym) return;
+                    const idx = this.state.watchlist.indexOf(sym);
+                    if (idx >= 0) {
+                        this.state.watchlist.splice(idx, 1);
+                    } else {
+                        this.state.watchlist.push(sym);
+                    }
+                    this.saveWatchlist();
+                    this.renderWatchlist();
+                    this.updateWatchlistBtn();
+                });
+
+                // Portfolio modal
+                document.getElementById('addPortfolioBtn').addEventListener('click', () => {
+                    document.getElementById('portfolioModal').classList.add('visible');
+                    document.getElementById('portfolioSymbolInput').value = this.state.currentSymbol || '';
+                    document.getElementById('portfolioQtyInput').value = '';
+                    document.getElementById('portfolioPriceInput').value = '';
+                    document.getElementById('portfolioSymbolInput').focus();
+                });
+                document.getElementById('portfolioCancel').addEventListener('click', () => {
+                    document.getElementById('portfolioModal').classList.remove('visible');
+                });
+                document.getElementById('portfolioAdd').addEventListener('click', async () => {
+                    const sym = document.getElementById('portfolioSymbolInput').value.trim().toUpperCase();
+                    const qty = parseFloat(document.getElementById('portfolioQtyInput').value);
+                    let price = parseFloat(document.getElementById('portfolioPriceInput').value);
+                    if (!sym || !qty || qty <= 0) return;
+                    if (!price || price <= 0) {
+                        try {
+                            const data = await DataService.fetchChart(sym, '5d');
+                            price = data.currentPrice;
+                        } catch {
+                            this.showToast(i18n.t('apiError'));
+                            return;
+                        }
+                    }
+                    this.state.portfolio.push({ symbol: sym, qty, price, date: new Date().toISOString().slice(0, 10) });
+                    this.savePortfolio();
+                    this.renderPortfolio();
+                    document.getElementById('portfolioModal').classList.remove('visible');
+                });
+                document.getElementById('portfolioSymbolInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') document.getElementById('portfolioQtyInput').focus();
+                });
+                document.getElementById('portfolioQtyInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') document.getElementById('portfolioPriceInput').focus();
+                });
+                document.getElementById('portfolioPriceInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') document.getElementById('portfolioAdd').click();
+                });
+                document.getElementById('portfolioModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('portfolioModal'))
+                        document.getElementById('portfolioModal').classList.remove('visible');
                 });
 
                 // Glossary modal
@@ -2423,6 +2592,14 @@
                     : `Search ${marketLabel} symbol or company...`;
             },
 
+            updateWatchlistBtn() {
+                const btn = document.getElementById('symbolWatchlistBtn');
+                const sym = this.state.currentSymbol;
+                const inList = sym && this.state.watchlist.includes(sym);
+                btn.classList.toggle('in-watchlist', inList);
+                btn.textContent = inList ? i18n.t('inWatchlist') : i18n.t('addToWatchlistShort');
+            },
+
             showLoading() { document.getElementById('loadingOverlay').classList.add('visible'); },
             hideLoading() { document.getElementById('loadingOverlay').classList.remove('visible'); },
 
@@ -2452,12 +2629,15 @@
                     // Update symbol header
                     document.getElementById('symbolName').textContent = data.symbol;
                     document.getElementById('symbolExchange').textContent = data.exchangeName || this.state.currentMarket;
+                    this.updateWatchlistBtn();
                     const price = data.currentPrice;
                     const prevClose = data.previousClose || data.candles[0].close;
                     const change = price - prevClose;
                     const changePct = (change / prevClose * 100);
 
-                    document.getElementById('symbolPrice').textContent = `${data.currency === 'ILA' ? '₪' : '$'}${price.toFixed(2)}`;
+                    const isIndex = symbol.startsWith('^');
+                    const currSym = isIndex ? '' : (data.currency === 'ILA' ? '₪' : '$');
+                    document.getElementById('symbolPrice').textContent = `${currSym}${price.toFixed(2)}`;
                     const changeEl = document.getElementById('symbolChange');
                     changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
                     changeEl.className = `symbol-change ${change >= 0 ? 'up' : 'down'}`;
@@ -2705,6 +2885,7 @@
                         this.state.watchlist = this.state.watchlist.filter(s => s !== btn.dataset.remove);
                         this.saveWatchlist();
                         this.renderWatchlist();
+                        this.updateWatchlistBtn();
                     });
                 });
 
@@ -2722,6 +2903,97 @@
 
             saveWatchlist() {
                 localStorage.setItem('stockChase_watchlist', JSON.stringify(this.state.watchlist));
+            },
+
+            savePortfolio() {
+                localStorage.setItem('stockChase_portfolio', JSON.stringify(this.state.portfolio));
+            },
+
+            renderPortfolio() {
+                const container = document.getElementById('portfolioContainer');
+                const summaryEl = document.getElementById('portfolioSummary');
+                const portfolio = this.state.portfolio;
+
+                if (portfolio.length === 0) {
+                    container.innerHTML = `<div class="portfolio-empty" data-i18n="portfolioEmpty">${i18n.t('portfolioEmpty')}</div>`;
+                    summaryEl.innerHTML = '';
+                    return;
+                }
+
+                container.innerHTML = portfolio.map((pos, idx) => `
+                    <div class="portfolio-item" data-symbol="${pos.symbol}" data-idx="${idx}">
+                        <div class="portfolio-row">
+                            <div>
+                                <span class="portfolio-symbol">${pos.symbol}</span>
+                                <span class="portfolio-qty">${pos.qty} ${i18n.t('shares')} @ ${pos.price.toFixed(2)}</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px">
+                                <div style="text-align:right">
+                                    <div class="portfolio-value" id="pf_val_${idx}">--</div>
+                                    <div class="portfolio-pnl" id="pf_pnl_${idx}">--</div>
+                                </div>
+                                <button class="portfolio-remove" data-pidx="${idx}">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Click to load symbol
+                container.querySelectorAll('.portfolio-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        if (e.target.classList.contains('portfolio-remove')) return;
+                        this.loadSymbol(item.dataset.symbol);
+                    });
+                });
+
+                // Remove position
+                container.querySelectorAll('.portfolio-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.state.portfolio.splice(parseInt(btn.dataset.pidx), 1);
+                        this.savePortfolio();
+                        this.renderPortfolio();
+                    });
+                });
+
+                // Fetch live prices
+                const symbols = [...new Set(portfolio.map(p => p.symbol))];
+                DataService.fetchMultipleQuotes(symbols).then(quotes => {
+                    let totalValue = 0, totalCost = 0;
+                    portfolio.forEach((pos, idx) => {
+                        const q = quotes[pos.symbol];
+                        const valEl = document.getElementById(`pf_val_${idx}`);
+                        const pnlEl = document.getElementById(`pf_pnl_${idx}`);
+                        if (!q || !valEl) return;
+
+                        const currentValue = q.price * pos.qty;
+                        const costBasis = pos.price * pos.qty;
+                        const pnl = currentValue - costBasis;
+                        const pnlPct = costBasis > 0 ? (pnl / costBasis * 100) : 0;
+
+                        totalValue += currentValue;
+                        totalCost += costBasis;
+
+                        valEl.textContent = currentValue.toFixed(2);
+                        pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)`;
+                        pnlEl.className = `portfolio-pnl ${pnl >= 0 ? 'up' : 'down'}`;
+                    });
+
+                    const totalPnl = totalValue - totalCost;
+                    const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
+                    const pnlClass = totalPnl >= 0 ? 'up' : 'down';
+                    const pnlColor = totalPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                    summaryEl.innerHTML = `
+                        <div class="portfolio-summary">
+                            <span class="portfolio-summary-label">${i18n.t('totalValue')}</span>
+                            <span class="portfolio-summary-value">${totalValue.toFixed(2)}</span>
+                        </div>
+                        <div class="portfolio-summary">
+                            <span class="portfolio-summary-label">${i18n.t('totalPnL')}</span>
+                            <span class="portfolio-summary-value" style="color:${pnlColor}">${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)} (${totalPnlPct >= 0 ? '+' : ''}${totalPnlPct.toFixed(1)}%)</span>
+                        </div>
+                    `;
+                });
             },
 
             async loadRecommendations() {
