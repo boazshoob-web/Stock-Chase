@@ -2535,7 +2535,8 @@
                             return;
                         }
                     }
-                    this.state.portfolio.push({ symbol: sym, qty, price, date: new Date().toISOString().slice(0, 10) });
+                    const currency = sym.endsWith('.TA') ? '₪' : '$';
+                    this.state.portfolio.push({ symbol: sym, qty, price, currency, date: new Date().toISOString().slice(0, 10) });
                     this.savePortfolio();
                     this.renderPortfolio();
                     document.getElementById('portfolioModal').classList.remove('visible');
@@ -2920,12 +2921,14 @@
                     return;
                 }
 
-                container.innerHTML = portfolio.map((pos, idx) => `
+                container.innerHTML = portfolio.map((pos, idx) => {
+                    const c = pos.currency || (pos.symbol.endsWith('.TA') ? '₪' : '$');
+                    return `
                     <div class="portfolio-item" data-symbol="${pos.symbol}" data-idx="${idx}">
                         <div class="portfolio-row">
                             <div>
                                 <span class="portfolio-symbol">${pos.symbol}</span>
-                                <span class="portfolio-qty">${pos.qty} ${i18n.t('shares')} @ ${pos.price.toFixed(2)}</span>
+                                <span class="portfolio-qty">${pos.qty} ${i18n.t('shares')} @ ${c}${pos.price.toFixed(2)}</span>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px">
                                 <div style="text-align:right">
@@ -2936,7 +2939,7 @@
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `; }).join('');
 
                 // Click to load symbol
                 container.querySelectorAll('.portfolio-item').forEach(item => {
@@ -2959,7 +2962,7 @@
                 // Fetch live prices
                 const symbols = [...new Set(portfolio.map(p => p.symbol))];
                 DataService.fetchMultipleQuotes(symbols).then(quotes => {
-                    let totalValue = 0, totalCost = 0;
+                    const totals = {};
                     portfolio.forEach((pos, idx) => {
                         const q = quotes[pos.symbol];
                         const valEl = document.getElementById(`pf_val_${idx}`);
@@ -2971,28 +2974,33 @@
                         const pnl = currentValue - costBasis;
                         const pnlPct = costBasis > 0 ? (pnl / costBasis * 100) : 0;
 
-                        totalValue += currentValue;
-                        totalCost += costBasis;
-
-                        valEl.textContent = currentValue.toFixed(2);
-                        pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)`;
+                        const c = pos.currency || (pos.symbol.endsWith('.TA') ? '₪' : '$');
+                        valEl.textContent = `${c}${currentValue.toFixed(2)}`;
+                        pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${c}${Math.abs(pnl).toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)`;
                         pnlEl.className = `portfolio-pnl ${pnl >= 0 ? 'up' : 'down'}`;
+
+                        if (!totals[c]) totals[c] = { value: 0, cost: 0 };
+                        totals[c].value += currentValue;
+                        totals[c].cost += costBasis;
                     });
 
-                    const totalPnl = totalValue - totalCost;
-                    const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
-                    const pnlClass = totalPnl >= 0 ? 'up' : 'down';
-                    const pnlColor = totalPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                    summaryEl.innerHTML = `
-                        <div class="portfolio-summary">
-                            <span class="portfolio-summary-label">${i18n.t('totalValue')}</span>
-                            <span class="portfolio-summary-value">${totalValue.toFixed(2)}</span>
-                        </div>
-                        <div class="portfolio-summary">
-                            <span class="portfolio-summary-label">${i18n.t('totalPnL')}</span>
-                            <span class="portfolio-summary-value" style="color:${pnlColor}">${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)} (${totalPnlPct >= 0 ? '+' : ''}${totalPnlPct.toFixed(1)}%)</span>
-                        </div>
-                    `;
+                    let summaryHtml = '';
+                    for (const [c, t] of Object.entries(totals)) {
+                        const pnl = t.value - t.cost;
+                        const pnlPct = t.cost > 0 ? (pnl / t.cost * 100) : 0;
+                        const pnlColor = pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                        summaryHtml += `
+                            <div class="portfolio-summary">
+                                <span class="portfolio-summary-label">${i18n.t('totalValue')} (${c})</span>
+                                <span class="portfolio-summary-value">${c}${t.value.toFixed(2)}</span>
+                            </div>
+                            <div class="portfolio-summary">
+                                <span class="portfolio-summary-label">${i18n.t('totalPnL')} (${c})</span>
+                                <span class="portfolio-summary-value" style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}${c}${Math.abs(pnl).toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)</span>
+                            </div>
+                        `;
+                    }
+                    summaryEl.innerHTML = summaryHtml;
                 });
             },
 
