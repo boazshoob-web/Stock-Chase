@@ -338,6 +338,64 @@
             color: var(--text-muted); font-size: 0.8rem;
             text-align: center; padding: 16px 0;
         }
+        .bank-balance-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 10px; margin-bottom: 8px;
+            background: var(--bg-secondary); border-radius: var(--radius);
+            font-size: 0.82rem;
+        }
+        .bank-balance-label { color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+        .bank-balance-value { font-weight: 700; color: var(--accent-blue); }
+        .bank-edit-btn {
+            font-size: 0.65rem; padding: 1px 5px; border-radius: 4px;
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .bank-edit-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .exchange-rate-row {
+            font-size: 0.72rem; color: var(--text-muted); text-align: center;
+            padding: 4px 0; margin-bottom: 6px;
+        }
+        .portfolio-sell {
+            font-size: 0.65rem; color: var(--accent-red); padding: 1px 6px;
+            border: 1px solid var(--accent-red); border-radius: 4px;
+            background: transparent; cursor: pointer; transition: all 0.2s;
+            opacity: 0;
+        }
+        .portfolio-item:hover .portfolio-sell { opacity: 1; }
+        .portfolio-sell:hover { background: var(--accent-red); color: #fff; }
+        .auto-trade-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 10px; margin-bottom: 6px;
+            background: var(--bg-secondary); border-radius: var(--radius);
+            font-size: 0.78rem;
+        }
+        .auto-trade-label { color: var(--text-muted); }
+        .auto-trade-toggle {
+            position: relative; width: 36px; height: 20px;
+            background: var(--border); border-radius: 10px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .auto-trade-toggle.active { background: var(--accent-green); }
+        .auto-trade-toggle::after {
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #fff; transition: transform 0.2s;
+        }
+        .auto-trade-toggle.active::after { transform: translateX(16px); }
+        .trade-log {
+            max-height: 120px; overflow-y: auto;
+            font-size: 0.72rem; margin-top: 6px;
+        }
+        .trade-log-entry {
+            padding: 4px 8px; border-radius: 4px; margin-bottom: 3px;
+            background: var(--bg-secondary);
+        }
+        .trade-log-entry.buy { border-left: 3px solid var(--accent-green); }
+        .trade-log-entry.sell { border-left: 3px solid var(--accent-red); }
+        .trade-log-entry.info { border-left: 3px solid var(--accent-blue); }
+        .trade-log-time { color: var(--text-muted); margin-right: 6px; }
+        .trade-log-text { color: var(--text-secondary); }
         .watchlist-empty {
             color: var(--text-muted);
             font-size: 0.8rem;
@@ -843,6 +901,16 @@
                     <div class="sidebar-title" data-i18n="portfolio" style="margin-bottom:0">Portfolio</div>
                     <button class="watchlist-add" id="addPortfolioBtn" title="Add position">+</button>
                 </div>
+                <div class="bank-balance-row">
+                    <span class="bank-balance-label"><span data-i18n="bankBalance">Bank Balance</span> <button class="bank-edit-btn" id="bankEditBtn" data-i18n="edit">Edit</button></span>
+                    <span class="bank-balance-value" id="bankBalanceDisplay">₪0.00</span>
+                </div>
+                <div class="exchange-rate-row" id="exchangeRateDisplay">USD/ILS: --</div>
+                <div class="auto-trade-row">
+                    <span class="auto-trade-label" data-i18n="autoTrade">Auto-Trade</span>
+                    <div class="auto-trade-toggle" id="autoTradeToggle"></div>
+                </div>
+                <div class="trade-log" id="tradeLog"></div>
                 <div id="portfolioSummary"></div>
                 <div id="portfolioContainer">
                     <div class="portfolio-empty" data-i18n="portfolioEmpty">Add positions to your portfolio</div>
@@ -1046,6 +1114,18 @@
         </div>
     </div>
 
+    <!-- BANK BALANCE MODAL -->
+    <div class="modal-backdrop" id="bankModal">
+        <div class="modal">
+            <div class="modal-title" data-i18n="setBankBalance">Set Bank Balance (₪ ILS)</div>
+            <input type="number" class="modal-input" id="bankBalanceInput" placeholder="0.00" min="0" step="any">
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="bankCancel" data-i18n="cancel">Cancel</button>
+                <button class="modal-btn primary" id="bankSave" data-i18n="save">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PORTFOLIO ADD MODAL -->
     <div class="modal-backdrop" id="portfolioModal">
         <div class="modal">
@@ -1056,6 +1136,7 @@
                 <input type="number" class="modal-input" id="portfolioPriceInput" data-i18n-placeholder="buyPrice" placeholder="Buy price" min="0.01" step="any" style="flex:1">
             </div>
             <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;" id="portfolioPriceHint" data-i18n="leaveEmptyCurrentPrice">Leave price empty to use current market price</div>
+            <div style="font-size:0.8rem; color:var(--accent-blue); margin-top:6px; font-weight:600; display:none;" id="portfolioCostPreview"></div>
             <div class="modal-actions">
                 <button class="modal-btn secondary" id="portfolioCancel" data-i18n="cancel">Cancel</button>
                 <button class="modal-btn primary" id="portfolioAdd" data-i18n="add">Add</button>
@@ -1152,6 +1233,24 @@
                     totalPnL: 'Total P&L',
                     avgPrice: 'Avg',
                     shares: 'shares',
+                    bankBalance: 'Bank Balance',
+                    setBankBalance: 'Set Bank Balance (₪ ILS)',
+                    edit: 'Edit',
+                    save: 'Save',
+                    sell: 'Sell',
+                    insufficientFunds: 'Insufficient bank balance for this purchase',
+                    positionSold: 'Position sold',
+                    costInIls: 'Cost in ₪',
+                    autoTrade: 'Auto-Trade',
+                    autoTradeOn: 'Auto-Trade enabled',
+                    autoTradeOff: 'Auto-Trade disabled',
+                    autoTradeRunning: 'Auto-Trade scanning...',
+                    autoTradeComplete: 'Auto-Trade scan complete',
+                    autoBuy: 'Auto-bought',
+                    autoSell: 'Auto-sold',
+                    marketClosed: 'Market closed',
+                    noTradeOpportunities: 'No trade opportunities found',
+                    maxPositions: 'Max positions reached',
                     enterSymbol: 'Enter symbol (e.g., AAPL)',
                     cancel: 'Cancel',
                     add: 'Add',
@@ -1248,6 +1347,24 @@
                     totalPnL: 'רווח/הפסד כולל',
                     avgPrice: 'ממוצע',
                     shares: 'מניות',
+                    bankBalance: 'יתרת בנק',
+                    setBankBalance: 'הגדר יתרת בנק (₪)',
+                    edit: 'ערוך',
+                    save: 'שמור',
+                    sell: 'מכור',
+                    insufficientFunds: 'יתרת בנק לא מספיקה לרכישה זו',
+                    positionSold: 'פוזיציה נמכרה',
+                    costInIls: 'עלות ב-₪',
+                    autoTrade: 'מסחר אוטומטי',
+                    autoTradeOn: 'מסחר אוטומטי הופעל',
+                    autoTradeOff: 'מסחר אוטומטי כובה',
+                    autoTradeRunning: 'מסחר אוטומטי סורק...',
+                    autoTradeComplete: 'סריקת מסחר אוטומטי הושלמה',
+                    autoBuy: 'נקנה אוטומטית',
+                    autoSell: 'נמכר אוטומטית',
+                    marketClosed: 'שוק סגור',
+                    noTradeOpportunities: 'לא נמצאו הזדמנויות מסחר',
+                    maxPositions: 'הגעת למקסימום פוזיציות',
                     enterSymbol: 'הכנס סימול (לדוגמה: TEVA.TA)',
                     cancel: 'ביטול',
                     add: 'הוסף',
@@ -2241,6 +2358,11 @@
                 currentRange: '6M',
                 watchlist: [],
                 portfolio: [],
+                bankBalance: 0,
+                usdIlsRate: null,
+                usdIlsRateDate: null,
+                autoTradeEnabled: false,
+                tradeLog: [],
                 overlays: { sma20: true, sma50: true, sma200: false, bollinger: false, trendLine: true },
                 labels: { sr: true, signals: true, drawings: true },
                 recFilters: { buy: true, hold: true, sell: true },
@@ -2272,6 +2394,18 @@
                     try { this.state.portfolio = JSON.parse(savedPortfolio); } catch {}
                 }
 
+                const savedBank = localStorage.getItem('stockChase_bankBalance');
+                if (savedBank) this.state.bankBalance = parseFloat(savedBank) || 0;
+
+                // Load cached exchange rate if from today
+                const savedRate = localStorage.getItem('stockChase_usdIlsRate');
+                const savedRateDate = localStorage.getItem('stockChase_usdIlsRateDate');
+                const today = new Date().toISOString().slice(0, 10);
+                if (savedRate && savedRateDate === today) {
+                    this.state.usdIlsRate = parseFloat(savedRate);
+                    this.state.usdIlsRateDate = today;
+                }
+
                 const savedMarket = localStorage.getItem('stockChase_market') || 'NYSE';
                 this.state.currentMarket = savedMarket;
 
@@ -2279,14 +2413,30 @@
                 this.updateMarketTabs();
                 this.renderWatchlist();
                 this.renderPortfolio();
+                this.updateBankDisplay();
+                this.fetchExchangeRate();
                 this.loadMarketOverview();
                 ChartManager._bindDrawingOverlay();
 
                 const lastSymbol = localStorage.getItem('stockChase_lastSymbol') || (savedMarket === 'TASE' ? '^TA125.TA' : '^GSPC');
                 this.loadSymbol(lastSymbol);
 
-                // Load recommendations after a short delay to not block initial load
-                setTimeout(() => this.loadRecommendations(), 1000);
+                // Load auto-trade state
+                this.state.autoTradeEnabled = localStorage.getItem('stockChase_autoTrade') === 'true';
+                document.getElementById('autoTradeToggle').classList.toggle('active', this.state.autoTradeEnabled);
+                const savedLog = localStorage.getItem('stockChase_tradeLog');
+                if (savedLog) {
+                    try { this.state.tradeLog = JSON.parse(savedLog); } catch {}
+                }
+                this.renderTradeLog();
+
+                // Load recommendations, then run auto-trade
+                setTimeout(async () => {
+                    await this.loadRecommendations();
+                    if (this.state.autoTradeEnabled) {
+                        await this.autoManagePortfolio();
+                    }
+                }, 1000);
             },
 
             bindEvents() {
@@ -2462,7 +2612,7 @@
                         const header = section.querySelector('.sidebar-title, .watchlist-header, .portfolio-header, .rec-header');
                         if (header) {
                             header.addEventListener('click', (e) => {
-                                if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input')) return;
+                                if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input') || e.target.closest('.auto-trade-toggle') || e.target.closest('.bank-edit-btn')) return;
                                 section.classList.toggle('collapsed');
                             });
                         }
@@ -2535,8 +2685,22 @@
                             return;
                         }
                     }
-                    const currency = sym.endsWith('.TA') ? '₪' : '$';
-                    this.state.portfolio.push({ symbol: sym, qty, price, currency, date: new Date().toISOString().slice(0, 10) });
+                    const isUSD = !sym.endsWith('.TA');
+                    const currency = isUSD ? '$' : '₪';
+                    const costInUSD = price * qty;
+                    const rate = this.state.usdIlsRate || 3.6;
+                    const costInILS = isUSD ? costInUSD * rate : price * qty;
+
+                    if (costInILS > this.state.bankBalance) {
+                        this.showToast(i18n.t('insufficientFunds'));
+                        return;
+                    }
+
+                    this.state.bankBalance -= costInILS;
+                    this.saveBankBalance();
+                    this.updateBankDisplay();
+
+                    this.state.portfolio.push({ symbol: sym, qty, price, currency, costILS: costInILS, date: new Date().toISOString().slice(0, 10) });
                     this.savePortfolio();
                     this.renderPortfolio();
                     document.getElementById('portfolioModal').classList.remove('visible');
@@ -2550,9 +2714,65 @@
                 document.getElementById('portfolioPriceInput').addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') document.getElementById('portfolioAdd').click();
                 });
+
+                // Cost preview in portfolio modal
+                const updateCostPreview = () => {
+                    const sym = document.getElementById('portfolioSymbolInput').value.trim().toUpperCase();
+                    const qty = parseFloat(document.getElementById('portfolioQtyInput').value) || 0;
+                    const price = parseFloat(document.getElementById('portfolioPriceInput').value) || 0;
+                    const preview = document.getElementById('portfolioCostPreview');
+                    if (qty > 0 && price > 0) {
+                        const isUSD = !sym.endsWith('.TA');
+                        const cost = qty * price;
+                        const rate = this.state.usdIlsRate || 3.6;
+                        const costILS = isUSD ? cost * rate : cost;
+                        preview.style.display = 'block';
+                        preview.textContent = `${i18n.t('costInIls')}: ₪${costILS.toFixed(2)}${isUSD ? ` ($${cost.toFixed(2)} × ${rate.toFixed(4)})` : ''}`;
+                    } else {
+                        preview.style.display = 'none';
+                    }
+                };
+                document.getElementById('portfolioQtyInput').addEventListener('input', updateCostPreview);
+                document.getElementById('portfolioPriceInput').addEventListener('input', updateCostPreview);
+                document.getElementById('portfolioSymbolInput').addEventListener('input', updateCostPreview);
                 document.getElementById('portfolioModal').addEventListener('click', (e) => {
                     if (e.target === document.getElementById('portfolioModal'))
                         document.getElementById('portfolioModal').classList.remove('visible');
+                });
+
+                // Auto-trade toggle
+                document.getElementById('autoTradeToggle').addEventListener('click', () => {
+                    this.state.autoTradeEnabled = !this.state.autoTradeEnabled;
+                    localStorage.setItem('stockChase_autoTrade', this.state.autoTradeEnabled.toString());
+                    document.getElementById('autoTradeToggle').classList.toggle('active', this.state.autoTradeEnabled);
+                    this.showToast(i18n.t(this.state.autoTradeEnabled ? 'autoTradeOn' : 'autoTradeOff'), 'success');
+                    if (this.state.autoTradeEnabled) this.autoManagePortfolio();
+                });
+
+                // Bank balance modal
+                document.getElementById('bankEditBtn').addEventListener('click', () => {
+                    document.getElementById('bankBalanceInput').value = this.state.bankBalance || '';
+                    document.getElementById('bankModal').classList.add('visible');
+                    document.getElementById('bankBalanceInput').focus();
+                });
+                document.getElementById('bankCancel').addEventListener('click', () => {
+                    document.getElementById('bankModal').classList.remove('visible');
+                });
+                document.getElementById('bankSave').addEventListener('click', () => {
+                    const val = parseFloat(document.getElementById('bankBalanceInput').value);
+                    if (!isNaN(val) && val >= 0) {
+                        this.state.bankBalance = val;
+                        this.saveBankBalance();
+                        this.updateBankDisplay();
+                    }
+                    document.getElementById('bankModal').classList.remove('visible');
+                });
+                document.getElementById('bankBalanceInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') document.getElementById('bankSave').click();
+                });
+                document.getElementById('bankModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('bankModal'))
+                        document.getElementById('bankModal').classList.remove('visible');
                 });
 
                 // Glossary modal
@@ -2910,6 +3130,275 @@
                 localStorage.setItem('stockChase_portfolio', JSON.stringify(this.state.portfolio));
             },
 
+            saveBankBalance() {
+                localStorage.setItem('stockChase_bankBalance', this.state.bankBalance.toString());
+            },
+
+            updateBankDisplay() {
+                const el = document.getElementById('bankBalanceDisplay');
+                el.textContent = `₪${this.state.bankBalance.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            },
+
+            async fetchExchangeRate() {
+                const today = new Date().toISOString().slice(0, 10);
+                if (this.state.usdIlsRate && this.state.usdIlsRateDate === today) {
+                    document.getElementById('exchangeRateDisplay').textContent = `USD/ILS: ${this.state.usdIlsRate.toFixed(4)}`;
+                    return;
+                }
+                try {
+                    const data = await DataService.fetchChart('USDILS=X', '5d');
+                    if (data && data.currentPrice) {
+                        this.state.usdIlsRate = data.currentPrice;
+                        this.state.usdIlsRateDate = today;
+                        localStorage.setItem('stockChase_usdIlsRate', this.state.usdIlsRate.toString());
+                        localStorage.setItem('stockChase_usdIlsRateDate', today);
+                        document.getElementById('exchangeRateDisplay').textContent = `USD/ILS: ${this.state.usdIlsRate.toFixed(4)}`;
+                    }
+                } catch {
+                    document.getElementById('exchangeRateDisplay').textContent = 'USD/ILS: N/A';
+                }
+            },
+
+            sellPosition(idx) {
+                const pos = this.state.portfolio[idx];
+                if (!pos) return;
+
+                const rate = this.state.usdIlsRate || 3.6;
+                // We need current price to sell — use stored cost as fallback
+                const symbols = [pos.symbol];
+                DataService.fetchMultipleQuotes(symbols).then(quotes => {
+                    const q = quotes[pos.symbol];
+                    const currentPrice = q ? q.price : pos.price;
+                    const isUSD = pos.currency === '$';
+                    const sellValueLocal = currentPrice * pos.qty;
+                    const sellValueILS = isUSD ? sellValueLocal * rate : sellValueLocal;
+
+                    this.state.bankBalance += sellValueILS;
+                    this.saveBankBalance();
+                    this.updateBankDisplay();
+
+                    this.state.portfolio.splice(idx, 1);
+                    this.savePortfolio();
+                    this.renderPortfolio();
+                    this.showToast(i18n.t('positionSold'), 'success');
+                });
+            },
+
+            isMarketOpen(market) {
+                const now = new Date();
+                const day = now.getUTCDay(); // 0=Sun, 6=Sat
+                const utcH = now.getUTCHours();
+                const utcM = now.getUTCMinutes();
+                const utcMin = utcH * 60 + utcM;
+
+                if (market === 'NYSE') {
+                    // Mon-Fri, 9:30-16:00 ET = 14:30-21:00 UTC (approx, ignoring DST edge)
+                    if (day === 0 || day === 6) return false;
+                    return utcMin >= 870 && utcMin <= 1260; // 14:30 to 21:00
+                }
+                if (market === 'TASE') {
+                    // Sun-Thu, ~10:00-17:30 IST = 07:00-14:30 UTC (winter) / 08:00-15:30 UTC (summer)
+                    if (day === 5 || day === 6) return false;
+                    return utcMin >= 420 && utcMin <= 930; // 07:00 to 15:30 (generous window)
+                }
+                return false;
+            },
+
+            addTradeLogEntry(type, text) {
+                const now = new Date();
+                const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const date = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                this.state.tradeLog.unshift({ type, text, time: `${date} ${time}` });
+                if (this.state.tradeLog.length > 50) this.state.tradeLog.length = 50;
+                localStorage.setItem('stockChase_tradeLog', JSON.stringify(this.state.tradeLog));
+                this.renderTradeLog();
+            },
+
+            renderTradeLog() {
+                const el = document.getElementById('tradeLog');
+                if (this.state.tradeLog.length === 0) { el.innerHTML = ''; return; }
+                el.innerHTML = this.state.tradeLog.slice(0, 15).map(entry =>
+                    `<div class="trade-log-entry ${entry.type}"><span class="trade-log-time">${entry.time}</span><span class="trade-log-text">${entry.text}</span></div>`
+                ).join('');
+            },
+
+            async autoManagePortfolio() {
+                if (!this.state.autoTradeEnabled) return;
+                if (this.state.bankBalance <= 0 && this.state.portfolio.length === 0) return;
+
+                const nyseOpen = this.isMarketOpen('NYSE');
+                const taseOpen = this.isMarketOpen('TASE');
+
+                if (!nyseOpen && !taseOpen) {
+                    this.addTradeLogEntry('info', `${i18n.t('marketClosed')} (NYSE & TASE)`);
+                    return;
+                }
+
+                this.addTradeLogEntry('info', i18n.t('autoTradeRunning'));
+
+                const rate = this.state.usdIlsRate || 3.6;
+                const MAX_POSITIONS = 10;
+                const MIN_CONFIDENCE = 55;
+
+                // Collect symbols to scan from both markets (only open ones)
+                const symbolsToScan = [];
+                if (nyseOpen) {
+                    symbolsToScan.push(...CONFIG.MARKETS.NYSE.popular.map(s => ({ symbol: s, market: 'NYSE' })));
+                }
+                if (taseOpen) {
+                    symbolsToScan.push(...CONFIG.MARKETS.TASE.popular.map(s => ({ symbol: s, market: 'TASE' })));
+                }
+                // Also scan watchlist symbols if their market is open
+                for (const sym of this.state.watchlist) {
+                    const mkt = sym.endsWith('.TA') ? 'TASE' : 'NYSE';
+                    if ((mkt === 'NYSE' && nyseOpen) || (mkt === 'TASE' && taseOpen)) {
+                        if (!symbolsToScan.find(s => s.symbol === sym)) {
+                            symbolsToScan.push({ symbol: sym, market: mkt });
+                        }
+                    }
+                }
+
+                // Analyze all symbols
+                const analyses = [];
+                await Promise.allSettled(symbolsToScan.map(async ({ symbol, market }) => {
+                    try {
+                        const data = await DataService.fetchChart(symbol, '6M');
+                        if (!data.candles || data.candles.length < 30) return;
+                        const analysis = {
+                            sma20: Analysis.SMA(data.candles, 20),
+                            sma50: Analysis.SMA(data.candles, 50),
+                            sma200: Analysis.SMA(data.candles, 200),
+                            rsi: Analysis.RSI(data.candles, 14),
+                            macd: Analysis.MACD(data.candles, 12, 26, 9),
+                            bollinger: Analysis.BollingerBands(data.candles, 20, 2),
+                            sr: Analysis.supportResistance(data.candles)
+                        };
+                        const signals = Signals.detectAll(data.candles, analysis);
+                        const composite = Signals.calculateComposite(signals);
+                        analyses.push({
+                            symbol, market,
+                            direction: composite.direction,
+                            confidence: composite.confidence,
+                            price: data.currentPrice,
+                            currency: data.currency
+                        });
+                    } catch {}
+                }));
+
+                let actionsCount = 0;
+
+                // 1. AUTO-SELL: Sell portfolio positions with SELL signal
+                const sellSignals = analyses.filter(a => a.direction === 'sell' && a.confidence >= MIN_CONFIDENCE);
+                for (const sig of sellSignals) {
+                    const posIdx = this.state.portfolio.findIndex(p => p.symbol === sig.symbol);
+                    if (posIdx < 0) continue;
+                    const pos = this.state.portfolio[posIdx];
+                    const isUSD = pos.currency === '$';
+                    const sellValueLocal = sig.price * pos.qty;
+                    const sellValueILS = isUSD ? sellValueLocal * rate : sellValueLocal;
+
+                    this.state.bankBalance += sellValueILS;
+                    this.state.portfolio.splice(posIdx, 1);
+                    actionsCount++;
+                    const c = isUSD ? '$' : '₪';
+                    this.addTradeLogEntry('sell', `${i18n.t('autoSell')} ${pos.qty} ${pos.symbol} @ ${c}${sig.price.toFixed(2)} → ₪${sellValueILS.toFixed(2)}`);
+                }
+
+                // 2. AUTO-BUY: Buy symbols with BUY signal, balanced sizing
+                const buySignals = analyses
+                    .filter(a => a.direction === 'buy' && a.confidence >= MIN_CONFIDENCE)
+                    .filter(a => !this.state.portfolio.find(p => p.symbol === a.symbol))
+                    .sort((a, b) => b.confidence - a.confidence);
+
+                const availableSlots = MAX_POSITIONS - this.state.portfolio.length;
+                const buyCount = Math.min(buySignals.length, availableSlots);
+
+                if (buyCount > 0 && this.state.bankBalance > 0) {
+                    // Equal-weight allocation: divide bank among available buys
+                    // Use at most 80% of bank to keep some reserve
+                    const allocatable = this.state.bankBalance * 0.8;
+                    const perPositionILS = allocatable / Math.max(buyCount, 1);
+
+                    for (let i = 0; i < buyCount; i++) {
+                        const sig = buySignals[i];
+                        const isUSD = !sig.symbol.endsWith('.TA');
+                        const priceInILS = isUSD ? sig.price * rate : sig.price;
+
+                        if (perPositionILS < priceInILS) continue; // can't afford even 1 share
+                        if (this.state.bankBalance < priceInILS) break; // no more funds
+
+                        const qty = Math.floor(perPositionILS / priceInILS);
+                        if (qty < 1) continue;
+
+                        const costLocal = sig.price * qty;
+                        const costILS = isUSD ? costLocal * rate : costLocal;
+                        const currency = isUSD ? '$' : '₪';
+
+                        if (costILS > this.state.bankBalance) continue;
+
+                        this.state.bankBalance -= costILS;
+                        this.state.portfolio.push({
+                            symbol: sig.symbol, qty, price: sig.price,
+                            currency, costILS,
+                            date: new Date().toISOString().slice(0, 10)
+                        });
+                        actionsCount++;
+                        this.addTradeLogEntry('buy', `${i18n.t('autoBuy')} ${qty} ${sig.symbol} @ ${currency}${sig.price.toFixed(2)} (₪${costILS.toFixed(2)})`);
+                    }
+                } else if (this.state.portfolio.length >= MAX_POSITIONS && buySignals.length > 0) {
+                    this.addTradeLogEntry('info', i18n.t('maxPositions'));
+                }
+
+                // 3. REBALANCE: If portfolio is unbalanced, trim oversized positions
+                if (this.state.portfolio.length > 1) {
+                    const quotes = await DataService.fetchMultipleQuotes(this.state.portfolio.map(p => p.symbol));
+                    let totalPortfolioILS = 0;
+                    const posValues = this.state.portfolio.map(pos => {
+                        const q = quotes[pos.symbol];
+                        const currentPrice = q ? q.price : pos.price;
+                        const isUSD = pos.currency === '$';
+                        const valueILS = isUSD ? currentPrice * pos.qty * rate : currentPrice * pos.qty;
+                        totalPortfolioILS += valueILS;
+                        return { valueILS, currentPrice };
+                    });
+
+                    // If any position exceeds 35% of total portfolio, sell excess down to 25%
+                    const targetPct = 0.25;
+                    const maxPct = 0.35;
+                    for (let i = this.state.portfolio.length - 1; i >= 0; i--) {
+                        if (totalPortfolioILS <= 0) break;
+                        const pct = posValues[i].valueILS / totalPortfolioILS;
+                        if (pct > maxPct) {
+                            const pos = this.state.portfolio[i];
+                            const targetValueILS = totalPortfolioILS * targetPct;
+                            const excessILS = posValues[i].valueILS - targetValueILS;
+                            const isUSD = pos.currency === '$';
+                            const priceILS = isUSD ? posValues[i].currentPrice * rate : posValues[i].currentPrice;
+                            const sellQty = Math.floor(excessILS / priceILS);
+                            if (sellQty >= 1 && sellQty < pos.qty) {
+                                const sellValueILS = sellQty * priceILS;
+                                pos.qty -= sellQty;
+                                this.state.bankBalance += sellValueILS;
+                                actionsCount++;
+                                const c = isUSD ? '$' : '₪';
+                                this.addTradeLogEntry('sell', `Rebalance: ${i18n.t('autoSell')} ${sellQty} ${pos.symbol} @ ${c}${posValues[i].currentPrice.toFixed(2)}`);
+                            }
+                        }
+                    }
+                }
+
+                if (actionsCount > 0) {
+                    this.saveBankBalance();
+                    this.savePortfolio();
+                    this.updateBankDisplay();
+                    this.renderPortfolio();
+                } else {
+                    this.addTradeLogEntry('info', i18n.t('noTradeOpportunities'));
+                }
+
+                this.addTradeLogEntry('info', i18n.t('autoTradeComplete'));
+            },
+
             renderPortfolio() {
                 const container = document.getElementById('portfolioContainer');
                 const summaryEl = document.getElementById('portfolioSummary');
@@ -2935,6 +3424,7 @@
                                     <div class="portfolio-value" id="pf_val_${idx}">--</div>
                                     <div class="portfolio-pnl" id="pf_pnl_${idx}">--</div>
                                 </div>
+                                <button class="portfolio-sell" data-sidx="${idx}" data-i18n="sell">Sell</button>
                                 <button class="portfolio-remove" data-pidx="${idx}">&times;</button>
                             </div>
                         </div>
@@ -2949,7 +3439,15 @@
                     });
                 });
 
-                // Remove position
+                // Sell position
+                container.querySelectorAll('.portfolio-sell').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.sellPosition(parseInt(btn.dataset.sidx));
+                    });
+                });
+
+                // Remove position (without selling - no bank credit)
                 container.querySelectorAll('.portfolio-remove').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
