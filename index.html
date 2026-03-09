@@ -1475,7 +1475,14 @@
                         { symbol: '^IXIC', name: 'NASDAQ', nameHe: 'נאסד"ק' },
                         { symbol: '^DJI', name: 'Dow Jones', nameHe: 'דאו ג\'ונס' }
                     ],
-                    popular: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'JPM']
+                    popular: [
+                        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'JPM',
+                        'V', 'MA', 'UNH', 'JNJ', 'WMT', 'PG', 'XOM', 'HD',
+                        'BAC', 'COST', 'ABBV', 'KO', 'PEP', 'MRK', 'AVGO', 'LLY',
+                        'ADBE', 'CRM', 'NFLX', 'AMD', 'INTC', 'QCOM', 'T', 'VZ',
+                        'DIS', 'NKE', 'MCD', 'PYPL', 'SBUX', 'GS', 'MS', 'C',
+                        'BA', 'CAT', 'GE', 'DE', 'UPS', 'FDX', 'ABNB', 'UBER'
+                    ]
                 },
                 TASE: {
                     indices: [
@@ -1483,7 +1490,12 @@
                         { symbol: '^TA35.TA', name: 'TA-35', nameHe: 'ת"א 35' },
                         { symbol: '^TA90.TA', name: 'TA-90', nameHe: 'ת"א 90' }
                     ],
-                    popular: ['LUMI.TA', 'DSCT.TA', 'NICE.TA', 'TEVA.TA', 'ICL.TA', 'BEZQ.TA', 'HARL.TA', 'POLI.TA']
+                    popular: [
+                        'LUMI.TA', 'DSCT.TA', 'NICE.TA', 'TEVA.TA', 'ICL.TA', 'BEZQ.TA', 'HARL.TA', 'POLI.TA',
+                        'ESLT.TA', 'ELCO.TA', 'MZTF.TA', 'FIBI.TA', 'DLEKG.TA', 'AZRG.TA', 'ORA.TA', 'MGDL.TA',
+                        'PHOE.TA', 'MNRT.TA', 'ARPT.TA', 'ENLT.TA', 'ALHE.TA', 'KRUR.TA', 'SHPG.TA', 'BCOM.TA',
+                        'CEL.TA', 'SPNS.TA', 'AMOT.TA', 'RLCO.TA', 'SKBN.TA', 'DANE.TA'
+                    ]
                 }
             }
         };
@@ -3240,50 +3252,73 @@
                 const MAX_POSITIONS = 10;
                 const MIN_CONFIDENCE = 55;
 
-                // Collect symbols to scan from both markets (only open ones)
-                const symbolsToScan = [];
-                if (nyseOpen) {
-                    symbolsToScan.push(...CONFIG.MARKETS.NYSE.popular.map(s => ({ symbol: s, market: 'NYSE' })));
-                }
-                if (taseOpen) {
-                    symbolsToScan.push(...CONFIG.MARKETS.TASE.popular.map(s => ({ symbol: s, market: 'TASE' })));
-                }
-                // Also scan watchlist symbols if their market is open
-                for (const sym of this.state.watchlist) {
-                    const mkt = sym.endsWith('.TA') ? 'TASE' : 'NYSE';
+                // Reuse recommendation results (already analyzed popular + watchlist)
+                const analyses = [];
+                const analyzedSymbols = new Set();
+                for (const rec of this.state.recResults) {
+                    const mkt = rec.symbol.endsWith('.TA') ? 'TASE' : 'NYSE';
                     if ((mkt === 'NYSE' && nyseOpen) || (mkt === 'TASE' && taseOpen)) {
-                        if (!symbolsToScan.find(s => s.symbol === sym)) {
-                            symbolsToScan.push({ symbol: sym, market: mkt });
-                        }
+                        analyses.push({
+                            symbol: rec.symbol, market: mkt,
+                            direction: rec.direction,
+                            confidence: rec.confidence,
+                            price: rec.price,
+                            currency: rec.currency
+                        });
+                        analyzedSymbols.add(rec.symbol);
                     }
                 }
 
-                // Analyze all symbols
-                const analyses = [];
-                await Promise.allSettled(symbolsToScan.map(async ({ symbol, market }) => {
-                    try {
-                        const data = await DataService.fetchChart(symbol, '6M');
-                        if (!data.candles || data.candles.length < 30) return;
-                        const analysis = {
-                            sma20: Analysis.SMA(data.candles, 20),
-                            sma50: Analysis.SMA(data.candles, 50),
-                            sma200: Analysis.SMA(data.candles, 200),
-                            rsi: Analysis.RSI(data.candles, 14),
-                            macd: Analysis.MACD(data.candles, 12, 26, 9),
-                            bollinger: Analysis.BollingerBands(data.candles, 20, 2),
-                            sr: Analysis.supportResistance(data.candles)
-                        };
-                        const signals = Signals.detectAll(data.candles, analysis);
-                        const composite = Signals.calculateComposite(signals);
-                        analyses.push({
-                            symbol, market,
-                            direction: composite.direction,
-                            confidence: composite.confidence,
-                            price: data.currentPrice,
-                            currency: data.currency
-                        });
-                    } catch {}
-                }));
+                // Also scan any remaining popular symbols + watchlist not in recommendations
+                const extraSymbols = [];
+                const allPopular = [
+                    ...(nyseOpen ? CONFIG.MARKETS.NYSE.popular : []),
+                    ...(taseOpen ? CONFIG.MARKETS.TASE.popular : [])
+                ];
+                for (const sym of [...allPopular, ...this.state.watchlist]) {
+                    if (analyzedSymbols.has(sym)) continue;
+                    const mkt = sym.endsWith('.TA') ? 'TASE' : 'NYSE';
+                    if ((mkt === 'NYSE' && nyseOpen) || (mkt === 'TASE' && taseOpen)) {
+                        extraSymbols.push({ symbol: sym, market: mkt });
+                        analyzedSymbols.add(sym);
+                    }
+                }
+                // Also scan portfolio symbols to check for sell signals
+                for (const pos of this.state.portfolio) {
+                    if (analyzedSymbols.has(pos.symbol)) continue;
+                    const mkt = pos.symbol.endsWith('.TA') ? 'TASE' : 'NYSE';
+                    if ((mkt === 'NYSE' && nyseOpen) || (mkt === 'TASE' && taseOpen)) {
+                        extraSymbols.push({ symbol: pos.symbol, market: mkt });
+                        analyzedSymbols.add(pos.symbol);
+                    }
+                }
+
+                if (extraSymbols.length > 0) {
+                    await Promise.allSettled(extraSymbols.map(async ({ symbol, market }) => {
+                        try {
+                            const data = await DataService.fetchChart(symbol, '6M');
+                            if (!data.candles || data.candles.length < 30) return;
+                            const analysis = {
+                                sma20: Analysis.SMA(data.candles, 20),
+                                sma50: Analysis.SMA(data.candles, 50),
+                                sma200: Analysis.SMA(data.candles, 200),
+                                rsi: Analysis.RSI(data.candles, 14),
+                                macd: Analysis.MACD(data.candles, 12, 26, 9),
+                                bollinger: Analysis.BollingerBands(data.candles, 20, 2),
+                                sr: Analysis.supportResistance(data.candles)
+                            };
+                            const signals = Signals.detectAll(data.candles, analysis);
+                            const composite = Signals.calculateComposite(signals);
+                            analyses.push({
+                                symbol, market,
+                                direction: composite.direction,
+                                confidence: composite.confidence,
+                                price: data.currentPrice,
+                                currency: data.currency
+                            });
+                        } catch {}
+                    }));
+                }
 
                 let actionsCount = 0;
 
@@ -3504,18 +3539,18 @@
 
             async loadRecommendations() {
                 const container = document.getElementById('recContainer');
-                const count = parseInt(document.getElementById('recCountInput').value) || 10;
                 container.innerHTML = `<div class="rec-loading"><div class="spinner"></div><div>${i18n.t('recLoading')}</div></div>`;
 
                 const results = [];
+                const analyzed = new Set();
 
-                // 1. Analyze watchlist symbols first
-                const watchlistSymbols = [...this.state.watchlist];
-                for (const sym of watchlistSymbols) {
-                    if (results.length >= count) break;
+                // Helper to analyze a symbol
+                const analyzeSymbol = async (sym, source) => {
+                    if (analyzed.has(sym)) return;
+                    analyzed.add(sym);
                     try {
                         const data = await DataService.fetchChart(sym, '6M');
-                        if (!data.candles || data.candles.length < 30) continue;
+                        if (!data.candles || data.candles.length < 30) return;
                         const analysis = {
                             sma20: Analysis.SMA(data.candles, 20),
                             sma50: Analysis.SMA(data.candles, 50),
@@ -3533,49 +3568,30 @@
                             confidence: composite.confidence,
                             price: data.currentPrice,
                             currency: data.currency,
-                            source: 'watchlist'
+                            source
                         });
                     } catch {}
+                };
+
+                // 1. Analyze watchlist symbols first (sequential for priority)
+                for (const sym of this.state.watchlist) {
+                    await analyzeSymbol(sym, 'watchlist');
                 }
 
-                // 2. Fill remaining spots from popular symbols with BUY signals
-                if (results.length < count) {
-                    const market = CONFIG.MARKETS[this.state.currentMarket];
-                    const popularSymbols = market.popular.filter(s => !watchlistSymbols.includes(s));
-                    const marketResults = [];
+                // 2. Analyze ALL popular symbols from BOTH markets (parallel)
+                const allPopular = [
+                    ...CONFIG.MARKETS.NYSE.popular,
+                    ...CONFIG.MARKETS.TASE.popular
+                ];
+                await Promise.allSettled(allPopular.map(sym => analyzeSymbol(sym, 'market')));
 
-                    await Promise.allSettled(popularSymbols.map(async (sym) => {
-                        try {
-                            const data = await DataService.fetchChart(sym, '6M');
-                            if (!data.candles || data.candles.length < 30) return;
-                            const analysis = {
-                                sma20: Analysis.SMA(data.candles, 20),
-                                sma50: Analysis.SMA(data.candles, 50),
-                                sma200: Analysis.SMA(data.candles, 200),
-                                rsi: Analysis.RSI(data.candles, 14),
-                                macd: Analysis.MACD(data.candles, 12, 26, 9),
-                                bollinger: Analysis.BollingerBands(data.candles, 20, 2),
-                                sr: Analysis.supportResistance(data.candles)
-                            };
-                            const signals = Signals.detectAll(data.candles, analysis);
-                            const composite = Signals.calculateComposite(signals);
-                            marketResults.push({
-                                symbol: sym,
-                                direction: composite.direction,
-                                confidence: composite.confidence,
-                                price: data.currentPrice,
-                                currency: data.currency,
-                                source: 'market'
-                            });
-                        } catch {}
-                    }));
-
-                    // Sort: BUY first, then HOLD, then SELL, each by confidence desc
-                    const dirOrder = { buy: 0, hold: 1, sell: 2 };
-                    marketResults.sort((a, b) => (dirOrder[a.direction] - dirOrder[b.direction]) || (b.confidence - a.confidence));
-                    const remaining = count - results.length;
-                    results.push(...marketResults.slice(0, remaining));
-                }
+                // Sort: watchlist first, then BUY > HOLD > SELL, each by confidence desc
+                const dirOrder = { buy: 0, hold: 1, sell: 2 };
+                results.sort((a, b) => {
+                    if (a.source === 'watchlist' && b.source !== 'watchlist') return -1;
+                    if (b.source === 'watchlist' && a.source !== 'watchlist') return 1;
+                    return (dirOrder[a.direction] - dirOrder[b.direction]) || (b.confidence - a.confidence);
+                });
 
                 this.state.recResults = results;
                 this.renderRecommendations();
