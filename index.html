@@ -1532,8 +1532,15 @@
                 const key = this._cacheKey(symbol, cfg.range, cfg.interval);
                 if (this._isCacheValid(key)) return this.cache.get(key).data;
 
-                const url = `${CONFIG.YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}&includePrePost=false`;
-                const json = await this._fetchWithProxy(url);
+                let json;
+                const url1 = `${CONFIG.YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}&includePrePost=false`;
+                try {
+                    json = await this._fetchWithProxy(url1);
+                } catch {
+                    // Fallback to query2
+                    const url2 = `${CONFIG.YAHOO_BASE2}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}&includePrePost=false`;
+                    json = await this._fetchWithProxy(url2);
+                }
 
                 if (!json.chart || !json.chart.result || !json.chart.result[0]) {
                     throw new Error('No data');
@@ -1542,19 +1549,25 @@
                 const result = json.chart.result[0];
                 const meta = result.meta;
                 const timestamps = result.timestamp || [];
-                const quote = result.indicators.quote[0];
+                const quote = (result.indicators && result.indicators.quote && result.indicators.quote[0]) || {};
 
                 const candles = [];
                 for (let i = 0; i < timestamps.length; i++) {
-                    if (quote.open[i] == null || quote.close[i] == null) continue;
+                    const o = quote.open && quote.open[i];
+                    const c = quote.close && quote.close[i];
+                    const h = quote.high && quote.high[i];
+                    const l = quote.low && quote.low[i];
+                    if (o == null && c == null) continue;
+                    const close = c != null ? c : o;
+                    const open = o != null ? o : close;
                     candles.push({
                         timestamp: timestamps[i] * 1000,
                         date: new Date(timestamps[i] * 1000),
-                        open: quote.open[i],
-                        high: quote.high[i],
-                        low: quote.low[i],
-                        close: quote.close[i],
-                        volume: quote.volume[i] || 0
+                        open: open,
+                        high: h != null ? h : Math.max(open, close),
+                        low: l != null ? l : Math.min(open, close),
+                        close: close,
+                        volume: (quote.volume && quote.volume[i]) || 0
                     });
                 }
 
@@ -2848,10 +2861,16 @@
             async loadSymbol(symbol) {
                 this.showLoading();
                 try {
-                    const data = await DataService.fetchChart(symbol, this.state.currentRange);
-                    if (!data.candles || data.candles.length < 5) {
+                    // Try requested range, then fall back to longer ranges, then shorter
+                    const rangeFallbacks = [this.state.currentRange, '1Y', '5Y', '3M', '1M', '1W'];
+                    let data = null;
+                    for (const range of rangeFallbacks) {
+                        data = await DataService.fetchChart(symbol, range);
+                        if (data.candles && data.candles.length >= 2) break;
+                    }
+                    if (!data || !data.candles || data.candles.length < 2) {
                         this.hideLoading();
-                        this.showToast(i18n.t('noData'));
+                        this.showToast(`${i18n.t('noData')}: ${symbol}`);
                         return;
                     }
 
