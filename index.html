@@ -863,6 +863,7 @@
         </div>
         <div class="header-right">
             <div class="range-buttons" id="rangeButtons">
+                <button class="range-btn" data-range="1D">1D</button>
                 <button class="range-btn" data-range="1W">1W</button>
                 <button class="range-btn" data-range="1M">1M</button>
                 <button class="range-btn" data-range="3M">3M</button>
@@ -1461,6 +1462,7 @@
             YAHOO_BASE2: 'https://query2.finance.yahoo.com',
             CACHE_TTL: 5 * 60 * 1000,
             RANGES: {
+                '1D':  { range: '1d',  interval: '5m'  },
                 '1W':  { range: '5d',  interval: '15m' },
                 '1M':  { range: '1mo', interval: '1d'  },
                 '3M':  { range: '3mo', interval: '1d'  },
@@ -2024,13 +2026,49 @@
         const ChartManager = {
             mainChart: null,
             indicatorChart: null,
+            zoomRatio: null, // { startPct, endPct } - percentage of data range visible
+
+            _saveZoomState() {
+                if (!this.mainChart) return;
+                try {
+                    const w = this.mainChart.w;
+                    const dataMinX = w.globals.initialMinX || w.globals.dataMinX;
+                    const dataMaxX = w.globals.initialMaxX || w.globals.dataMaxX;
+                    const visMinX = w.globals.minX;
+                    const visMaxX = w.globals.maxX;
+                    if (!dataMinX || !dataMaxX || dataMaxX === dataMinX) return;
+                    const totalRange = dataMaxX - dataMinX;
+                    const startPct = (visMinX - dataMinX) / totalRange;
+                    const endPct = (visMaxX - dataMinX) / totalRange;
+                    // Only save if actually zoomed in (not showing full range)
+                    if (startPct > 0.01 || endPct < 0.99) {
+                        this.zoomRatio = { startPct, endPct };
+                    } else {
+                        this.zoomRatio = null;
+                    }
+                } catch (e) { this.zoomRatio = null; }
+            },
+
+            _applyZoomState(candles) {
+                if (!this.zoomRatio || !this.mainChart || !candles || candles.length < 2) return;
+                try {
+                    const dataMinX = candles[0].timestamp;
+                    const dataMaxX = candles[candles.length - 1].timestamp;
+                    const totalRange = dataMaxX - dataMinX;
+                    const newMinX = dataMinX + this.zoomRatio.startPct * totalRange;
+                    const newMaxX = dataMinX + this.zoomRatio.endPct * totalRange;
+                    this.mainChart.zoomX(newMinX, newMaxX);
+                } catch (e) { /* ignore zoom errors */ }
+            },
 
             destroyAll() {
+                this._saveZoomState();
                 if (this.mainChart) { this.mainChart.destroy(); this.mainChart = null; }
                 if (this.indicatorChart) { this.indicatorChart.destroy(); this.indicatorChart = null; }
             },
 
             renderMainChart(candles, overlays, analysisResults, signals, regression, chartType) {
+                this._saveZoomState();
                 if (this.mainChart) { this.mainChart.destroy(); this.mainChart = null; }
 
                 chartType = chartType || 'candlestick';
@@ -2241,7 +2279,7 @@
                 };
 
                 this.mainChart = new ApexCharts(document.getElementById('mainChart'), options);
-                this.mainChart.render();
+                this.mainChart.render().then(() => { this._applyZoomState(candles); });
             },
 
             _bindDrawingOverlay() {
@@ -2489,6 +2527,7 @@
                         document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                         this.state.currentRange = btn.dataset.range;
+                        ChartManager.zoomRatio = null; // Reset zoom on range change
                         if (this.state.currentSymbol) this.loadSymbol(this.state.currentSymbol);
                     });
                 });
