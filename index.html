@@ -835,6 +835,22 @@
         .rec-filter-btn .dot { width: 7px; height: 7px; border-radius: 50%; }
         .rec-filter-btn.active { border-color: var(--accent-blue); color: var(--text-primary); }
         .rec-filter-btn:not(.active) .dot { opacity: 0.3; }
+        .rec-interval-row {
+            display: flex; align-items: center; gap: 4px;
+            margin-bottom: 8px;
+            font-size: 0.75rem; color: var(--text-muted);
+        }
+        .rec-interval-input {
+            width: 38px; padding: 2px 4px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            text-align: center;
+            outline: none;
+        }
+        .rec-interval-input:focus { border-color: var(--accent-blue); }
     </style>
 </head>
 <body>
@@ -925,10 +941,21 @@
                         <button class="rec-refresh-btn" id="recRefreshBtn" data-i18n="refresh">Refresh</button>
                     </div>
                 </div>
+                <div class="rec-interval-row">
+                    <span data-i18n="recAutoRefresh">Auto:</span>
+                    <input type="number" class="rec-interval-input" id="recIntervalInput" value="5" min="0" max="60">
+                    <span data-i18n="recMin">min</span>
+                    <span data-i18n="recIntervalHint">(0 = off)</span>
+                </div>
                 <div class="rec-filters" id="recFilters">
                     <button class="rec-filter-btn active" data-recfilter="buy"><span class="dot" style="background:var(--accent-green)"></span> <span data-i18n="buy">BUY</span></button>
                     <button class="rec-filter-btn active" data-recfilter="hold"><span class="dot" style="background:var(--accent-gold)"></span> <span data-i18n="hold">HOLD</span></button>
                     <button class="rec-filter-btn active" data-recfilter="sell"><span class="dot" style="background:var(--accent-red)"></span> <span data-i18n="sell">SELL</span></button>
+                </div>
+                <div class="rec-filters" id="recExchangeFilters">
+                    <button class="rec-filter-btn active" data-recexchange="all" data-i18n="recAll">All</button>
+                    <button class="rec-filter-btn" data-recexchange="nyse">NYSE</button>
+                    <button class="rec-filter-btn" data-recexchange="tase">TASE</button>
                 </div>
                 <div id="recContainer">
                     <div class="rec-loading">
@@ -1296,6 +1323,10 @@
                     recEmpty: 'No recommendations available',
                     recWatchlist: 'Watchlist',
                     recMarket: 'Market',
+                    recAll: 'All',
+                    recAutoRefresh: 'Auto:',
+                    recMin: 'min',
+                    recIntervalHint: '(0 = off)',
                     explainTitle: 'Signal Decision Breakdown',
                     explainWeights: 'Indicator Weights',
                     explainSignals: 'Detected Signals',
@@ -1410,6 +1441,10 @@
                     recEmpty: 'אין המלצות זמינות',
                     recWatchlist: 'רשימת מעקב',
                     recMarket: 'שוק',
+                    recAll: 'הכל',
+                    recAutoRefresh: 'רענון:',
+                    recMin: 'דק\'',
+                    recIntervalHint: '(0 = כבוי)',
                     explainTitle: 'פירוט החלטת האות',
                     explainWeights: 'משקלות אינדיקטורים',
                     explainSignals: 'אותות שזוהו',
@@ -2429,6 +2464,10 @@
                 overlays: { sma20: true, sma50: true, sma200: false, bollinger: false, trendLine: true },
                 labels: { sr: true, signals: true, drawings: true },
                 recFilters: { buy: true, hold: true, sell: true },
+                recExchangeFilter: 'all',
+                recInterval: 5,
+                recIsLoading: false,
+                recIntervalId: null,
                 recResults: [],
                 chartType: 'candlestick',
                 indicatorType: 'RSI',
@@ -2493,12 +2532,20 @@
                 }
                 this.renderTradeLog();
 
-                // Load recommendations, then run auto-trade
+                // Load interval setting
+                const savedRecInterval = localStorage.getItem('stockChase_recInterval');
+                if (savedRecInterval !== null) {
+                    this.state.recInterval = parseInt(savedRecInterval) || 0;
+                }
+                document.getElementById('recIntervalInput').value = this.state.recInterval;
+
+                // Load recommendations, then run auto-trade and start interval
                 setTimeout(async () => {
                     await this.loadRecommendations();
                     if (this.state.autoTradeEnabled) {
                         await this.autoManagePortfolio();
                     }
+                    this.startRecInterval();
                 }, 1000);
             },
 
@@ -2659,13 +2706,31 @@
                 });
 
                 // Recommendations
-                document.getElementById('recRefreshBtn').addEventListener('click', () => this.loadRecommendations());
-                document.getElementById('recCountInput').addEventListener('change', () => this.loadRecommendations());
-                document.querySelectorAll('.rec-filter-btn').forEach(btn => {
+                document.getElementById('recRefreshBtn').addEventListener('click', () => {
+                    this.startRecInterval();
+                    this.loadRecommendations();
+                });
+                document.getElementById('recCountInput').addEventListener('change', () => this.renderRecommendations());
+                document.getElementById('recIntervalInput').addEventListener('change', () => {
+                    this.state.recInterval = parseInt(document.getElementById('recIntervalInput').value) || 0;
+                    localStorage.setItem('stockChase_recInterval', this.state.recInterval);
+                    this.startRecInterval();
+                });
+                document.querySelectorAll('[data-recfilter]').forEach(btn => {
                     btn.addEventListener('click', () => {
                         const key = btn.dataset.recfilter;
                         this.state.recFilters[key] = !this.state.recFilters[key];
                         btn.classList.toggle('active', this.state.recFilters[key]);
+                        this.renderRecommendations();
+                    });
+                });
+                document.querySelectorAll('[data-recexchange]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const ex = btn.dataset.recexchange;
+                        this.state.recExchangeFilter = ex;
+                        document.querySelectorAll('[data-recexchange]').forEach(b => {
+                            b.classList.toggle('active', b.dataset.recexchange === ex);
+                        });
                         this.renderRecommendations();
                     });
                 });
@@ -2676,7 +2741,7 @@
                         const header = section.querySelector('.sidebar-title, .watchlist-header, .portfolio-header, .rec-header');
                         if (header) {
                             header.addEventListener('click', (e) => {
-                                if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input') || e.target.closest('.auto-trade-toggle') || e.target.closest('.bank-edit-btn')) return;
+                                if (e.target.closest('.watchlist-add') || e.target.closest('.rec-refresh-btn') || e.target.closest('.rec-count-input') || e.target.closest('.rec-interval-input') || e.target.closest('.auto-trade-toggle') || e.target.closest('.bank-edit-btn')) return;
                                 section.classList.toggle('collapsed');
                             });
                         }
@@ -3596,6 +3661,8 @@
             },
 
             async loadRecommendations() {
+                if (this.state.recIsLoading) return;
+                this.state.recIsLoading = true;
                 const container = document.getElementById('recContainer');
                 container.innerHTML = `<div class="rec-loading"><div class="spinner"></div><div>${i18n.t('recLoading')}</div></div>`;
 
@@ -3620,38 +3687,44 @@
                         };
                         const signals = Signals.detectAll(data.candles, analysis);
                         const composite = Signals.calculateComposite(signals);
+                        const exchange = sym.endsWith('.TA') ? 'tase' : 'nyse';
                         results.push({
                             symbol: sym,
                             direction: composite.direction,
                             confidence: composite.confidence,
                             price: data.currentPrice,
                             currency: data.currency,
-                            source
+                            source,
+                            exchange
                         });
                     } catch {}
                 };
 
-                // 1. Analyze watchlist symbols first (sequential for priority)
-                for (const sym of this.state.watchlist) {
-                    await analyzeSymbol(sym, 'watchlist');
+                try {
+                    // 1. Analyze watchlist symbols first (sequential for priority)
+                    for (const sym of this.state.watchlist) {
+                        await analyzeSymbol(sym, 'watchlist');
+                    }
+
+                    // 2. Analyze ALL popular symbols from BOTH markets (parallel)
+                    const allPopular = [
+                        ...CONFIG.MARKETS.NYSE.popular,
+                        ...CONFIG.MARKETS.TASE.popular
+                    ];
+                    await Promise.allSettled(allPopular.map(sym => analyzeSymbol(sym, 'market')));
+
+                    // Sort: watchlist first, then BUY > HOLD > SELL, each by confidence desc
+                    const dirOrder = { buy: 0, hold: 1, sell: 2 };
+                    results.sort((a, b) => {
+                        if (a.source === 'watchlist' && b.source !== 'watchlist') return -1;
+                        if (b.source === 'watchlist' && a.source !== 'watchlist') return 1;
+                        return (dirOrder[a.direction] - dirOrder[b.direction]) || (b.confidence - a.confidence);
+                    });
+
+                    this.state.recResults = results;
+                } finally {
+                    this.state.recIsLoading = false;
                 }
-
-                // 2. Analyze ALL popular symbols from BOTH markets (parallel)
-                const allPopular = [
-                    ...CONFIG.MARKETS.NYSE.popular,
-                    ...CONFIG.MARKETS.TASE.popular
-                ];
-                await Promise.allSettled(allPopular.map(sym => analyzeSymbol(sym, 'market')));
-
-                // Sort: watchlist first, then BUY > HOLD > SELL, each by confidence desc
-                const dirOrder = { buy: 0, hold: 1, sell: 2 };
-                results.sort((a, b) => {
-                    if (a.source === 'watchlist' && b.source !== 'watchlist') return -1;
-                    if (b.source === 'watchlist' && a.source !== 'watchlist') return 1;
-                    return (dirOrder[a.direction] - dirOrder[b.direction]) || (b.confidence - a.confidence);
-                });
-
-                this.state.recResults = results;
                 this.renderRecommendations();
             },
 
@@ -3659,7 +3732,10 @@
                 const container = document.getElementById('recContainer');
                 const count = parseInt(document.getElementById('recCountInput').value) || 10;
                 const filters = this.state.recFilters;
-                const filtered = this.state.recResults.filter(r => filters[r.direction]);
+                const exFilter = this.state.recExchangeFilter;
+                const filtered = this.state.recResults.filter(r =>
+                    filters[r.direction] && (exFilter === 'all' || r.exchange === exFilter)
+                );
                 const display = filtered.slice(0, count);
 
                 if (display.length === 0) {
@@ -3688,6 +3764,22 @@
                 container.querySelectorAll('.rec-item').forEach(item => {
                     item.addEventListener('click', () => this.loadSymbol(item.dataset.symbol));
                 });
+            },
+
+            startRecInterval() {
+                if (this.state.recIntervalId) {
+                    clearInterval(this.state.recIntervalId);
+                    this.state.recIntervalId = null;
+                }
+                const mins = this.state.recInterval;
+                if (mins > 0) {
+                    this.state.recIntervalId = setInterval(async () => {
+                        await this.loadRecommendations();
+                        if (this.state.autoTradeEnabled) {
+                            await this.autoManagePortfolio();
+                        }
+                    }, mins * 60 * 1000);
+                }
             }
         };
 
