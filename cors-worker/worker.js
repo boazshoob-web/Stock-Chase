@@ -1,40 +1,52 @@
 export default {
   async fetch(request) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+        },
+      });
+    }
+
     const url = new URL(request.url);
-    const targetUrl = url.searchParams.get('url') || url.pathname.slice(1) + url.search;
+    const targetUrl = url.searchParams.get('url');
 
     if (!targetUrl) {
       return new Response('Usage: ?url=https://target-url', { status: 400 });
     }
 
     // Only allow Yahoo Finance domains
-    const parsed = new URL(targetUrl);
+    let parsed;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      return new Response('Invalid URL', { status: 400 });
+    }
     if (!parsed.hostname.endsWith('yahoo.com')) {
       return new Response('Only Yahoo Finance URLs allowed', { status: 403 });
     }
 
-    const headers = new Headers(request.headers);
-    headers.delete('origin');
-    headers.delete('referer');
-
     try {
       const response = await fetch(targetUrl, {
-        method: request.method,
-        headers,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
       });
 
-      const responseHeaders = new Headers(response.headers);
-      responseHeaders.set('Access-Control-Allow-Origin', '*');
-      responseHeaders.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      responseHeaders.set('Access-Control-Allow-Headers', '*');
+      const body = await response.text();
 
-      if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers: responseHeaders });
-      }
-
-      return new Response(response.body, {
+      return new Response(body, {
         status: response.status,
-        headers: responseHeaders,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        },
       });
     } catch (err) {
       return new Response(err.message, { status: 500 });
