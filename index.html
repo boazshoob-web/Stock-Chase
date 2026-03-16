@@ -1491,6 +1491,7 @@
         const CONFIG = {
             CORS_PROXIES: [
                 'https://corsproxy.io/?',
+                'https://api.codetabs.com/v1/proxy?quest=',
                 'https://api.allorigins.win/raw?url='
             ],
             YAHOO_BASE: 'https://query1.finance.yahoo.com',
@@ -1555,7 +1556,8 @@
             async _fetchWithProxy(url) {
                 for (const proxy of CONFIG.CORS_PROXIES) {
                     try {
-                        const resp = await fetch(proxy + encodeURIComponent(url));
+                        const proxyUrl = proxy.includes('codetabs') ? proxy + url : proxy + encodeURIComponent(url);
+                        const resp = await fetch(proxyUrl);
                         if (!resp.ok) continue;
                         const text = await resp.text();
                         try { return JSON.parse(text); } catch { continue; }
