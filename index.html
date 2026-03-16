@@ -1490,9 +1490,10 @@
            ================================================ */
         const CONFIG = {
             CORS_PROXIES: [
-                'https://corsproxy.io/?',
-                'https://api.codetabs.com/v1/proxy?quest=',
-                'https://api.allorigins.win/raw?url='
+                'https://corsproxy.io/?url=',
+                'https://api.allorigins.win/raw?url=',
+                'https://thingproxy.freeboard.io/fetch/',
+                'https://cors-anywhere.herokuapp.com/'
             ],
             YAHOO_BASE: 'https://query1.finance.yahoo.com',
             YAHOO_BASE2: 'https://query2.finance.yahoo.com',
@@ -1556,7 +1557,8 @@
             async _fetchWithProxy(url) {
                 for (const proxy of CONFIG.CORS_PROXIES) {
                     try {
-                        const proxyUrl = proxy.includes('codetabs') ? proxy + url : proxy + encodeURIComponent(url);
+                        const needsEncode = proxy.includes('url=');
+                        const proxyUrl = proxy + (needsEncode ? encodeURIComponent(url) : url);
                         const resp = await fetch(proxyUrl);
                         if (!resp.ok) continue;
                         const text = await resp.text();
