@@ -1489,11 +1489,12 @@
            4.2: CONFIGURATION & CONSTANTS
            ================================================ */
         const CONFIG = {
+            CF_WORKER_PROXY: 'https://stock-chase-proxy.boaz-shoob.workers.dev/?url=',
             CORS_PROXIES: [
                 'https://corsproxy.io/?',
                 'https://api.allorigins.win/raw?url=',
             ],
-            REQUEST_DELAY_MS: 800,
+            REQUEST_DELAY_MS: 300,
             YAHOO_BASE: 'https://query1.finance.yahoo.com',
             YAHOO_BASE2: 'https://query2.finance.yahoo.com',
             CACHE_TTL: 5 * 60 * 1000,
@@ -1560,7 +1561,18 @@
             },
 
             async _fetchWithProxy(url) {
-                // Try working proxy first if we have one
+                // Try Cloudflare Worker first if configured
+                if (CONFIG.CF_WORKER_PROXY) {
+                    try {
+                        const resp = await fetch(CONFIG.CF_WORKER_PROXY + encodeURIComponent(url));
+                        if (resp.ok) {
+                            const text = await resp.text();
+                            const json = JSON.parse(text);
+                            return json;
+                        }
+                    } catch {}
+                }
+                // Fallback to public proxies
                 const proxies = this._workingProxy
                     ? [this._workingProxy, ...CONFIG.CORS_PROXIES.filter(p => p !== this._workingProxy)]
                     : CONFIG.CORS_PROXIES;
