@@ -1490,11 +1490,10 @@
            ================================================ */
         const CONFIG = {
             CORS_PROXIES: [
-                'https://corsproxy.io/?url=',
+                'https://corsproxy.io/?',
                 'https://api.allorigins.win/raw?url=',
-                'https://thingproxy.freeboard.io/fetch/',
-                'https://cors-anywhere.herokuapp.com/'
             ],
+            REQUEST_DELAY_MS: 350,
             YAHOO_BASE: 'https://query1.finance.yahoo.com',
             YAHOO_BASE2: 'https://query2.finance.yahoo.com',
             CACHE_TTL: 5 * 60 * 1000,
@@ -1544,6 +1543,8 @@
            ================================================ */
         const DataService = {
             cache: new Map(),
+            _queue: Promise.resolve(),
+            _workingProxy: null,
 
             _cacheKey(symbol, range, interval) {
                 return `${symbol}|${range}|${interval}`;
@@ -1554,18 +1555,40 @@
                 return entry && (Date.now() - entry.timestamp < CONFIG.CACHE_TTL);
             },
 
+            _delay(ms) {
+                return new Promise(r => setTimeout(r, ms));
+            },
+
             async _fetchWithProxy(url) {
-                for (const proxy of CONFIG.CORS_PROXIES) {
+                // Try working proxy first if we have one
+                const proxies = this._workingProxy
+                    ? [this._workingProxy, ...CONFIG.CORS_PROXIES.filter(p => p !== this._workingProxy)]
+                    : CONFIG.CORS_PROXIES;
+                for (const proxy of proxies) {
                     try {
-                        const needsEncode = proxy.includes('url=');
-                        const proxyUrl = proxy + (needsEncode ? encodeURIComponent(url) : url);
+                        const proxyUrl = proxy + encodeURIComponent(url);
                         const resp = await fetch(proxyUrl);
                         if (!resp.ok) continue;
                         const text = await resp.text();
-                        try { return JSON.parse(text); } catch { continue; }
+                        try {
+                            const json = JSON.parse(text);
+                            this._workingProxy = proxy;
+                            return json;
+                        } catch { continue; }
                     } catch { continue; }
                 }
+                this._workingProxy = null;
                 throw new Error('All proxies failed');
+            },
+
+            async _throttledFetch(url) {
+                // Queue requests so they run sequentially with a delay
+                const result = this._queue.then(async () => {
+                    await this._delay(CONFIG.REQUEST_DELAY_MS);
+                    return this._fetchWithProxy(url);
+                });
+                this._queue = result.catch(() => {});
+                return result;
             },
 
             async fetchChart(symbol, rangeName) {
@@ -1576,11 +1599,11 @@
                 let json;
                 const url1 = `${CONFIG.YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}&includePrePost=false`;
                 try {
-                    json = await this._fetchWithProxy(url1);
+                    json = await this._throttledFetch(url1);
                 } catch {
                     // Fallback to query2
                     const url2 = `${CONFIG.YAHOO_BASE2}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${cfg.range}&interval=${cfg.interval}&includePrePost=false`;
-                    json = await this._fetchWithProxy(url2);
+                    json = await this._throttledFetch(url2);
                 }
 
                 if (!json.chart || !json.chart.result || !json.chart.result[0]) {
@@ -1650,7 +1673,7 @@
                 await Promise.allSettled(symbols.map(async sym => {
                     try {
                         const url = `${CONFIG.YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(sym)}?range=2d&interval=1d&includePrePost=false`;
-                        const json = await this._fetchWithProxy(url);
+                        const json = await this._throttledFetch(url);
                         if (json.chart && json.chart.result && json.chart.result[0]) {
                             const m = json.chart.result[0].meta;
                             results[sym] = {
