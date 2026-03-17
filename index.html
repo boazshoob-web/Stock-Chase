@@ -1532,8 +1532,8 @@
                     popular: [
                         'LUMI.TA', 'DSCT.TA', 'NICE.TA', 'TEVA.TA', 'ICL.TA', 'BEZQ.TA', 'HARL.TA', 'POLI.TA',
                         'ESLT.TA', 'ELCO.TA', 'MZTF.TA', 'FIBI.TA', 'DLEKG.TA', 'AZRG.TA', 'ORA.TA', 'MGDL.TA',
-                        'PHOE.TA', 'MNRT.TA', 'ARPT.TA', 'ENLT.TA', 'ALHE.TA', 'KRUR.TA', 'SHPG.TA', 'BCOM.TA',
-                        'CEL.TA', 'SPNS.TA', 'AMOT.TA', 'RLCO.TA', 'SKBN.TA', 'DANE.TA'
+                        'PHOE.TA', 'MNRT.TA', 'ARPT.TA', 'ENLT.TA', 'ALHE.TA', 'KRUR.TA',
+                        'CEL.TA', 'AMOT.TA', 'RLCO.TA', 'SKBN.TA', 'DANE.TA'
                     ]
                 }
             }
@@ -1563,14 +1563,14 @@
             async _fetchWithProxy(url) {
                 // Try Cloudflare Worker first if configured
                 if (CONFIG.CF_WORKER_PROXY) {
-                    try {
-                        const resp = await fetch(CONFIG.CF_WORKER_PROXY + encodeURIComponent(url));
-                        if (resp.ok) {
-                            const text = await resp.text();
-                            const json = JSON.parse(text);
-                            return json;
-                        }
-                    } catch {}
+                    const resp = await fetch(CONFIG.CF_WORKER_PROXY + encodeURIComponent(url));
+                    if (resp.ok) {
+                        const text = await resp.text();
+                        return JSON.parse(text);
+                    }
+                    // CF worker reached Yahoo but Yahoo returned an error (404, etc.)
+                    // Don't bother with public proxies — they'll get the same result
+                    throw new Error(`Yahoo returned ${resp.status}`);
                 }
                 // Fallback to public proxies
                 const proxies = this._workingProxy
